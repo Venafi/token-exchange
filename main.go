@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"crypto"
 	"crypto/ecdsa"
@@ -33,7 +34,8 @@ var secretKey = []byte{
 var issuerURL = "test.com"
 
 func main() {
-	serverAddr := "localhost:8080"
+	tokenAddr := "0.0.0.0:7000"
+	publicAddr := "0.0.0.0:8000"
 
 	runCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, os.Kill)
 	defer stop()
@@ -43,10 +45,10 @@ func main() {
 		MinVersion: tls.VersionTLS12,
 	}
 
-	srv := &http.Server{
+	tokenSrv := &http.Server{
 		BaseContext: func(_ net.Listener) context.Context { return runCtx },
 
-		Addr:           serverAddr,
+		Addr:           tokenAddr,
 		ReadTimeout:    5 * time.Second,
 		WriteTimeout:   5 * time.Second,
 		IdleTimeout:    120 * time.Second,
@@ -54,17 +56,36 @@ func main() {
 
 		TLSConfig: tlsConfig,
 
-		Handler: http.HandlerFunc(handleRequest),
+		Handler: http.HandlerFunc(handleRequestTokenRoot),
 	}
-	srv.SetKeepAlivesEnabled(false)
+	tokenSrv.SetKeepAlivesEnabled(false)
+
+	publicSrv := &http.Server{
+		BaseContext: func(_ net.Listener) context.Context { return runCtx },
+
+		Addr:           publicAddr,
+		ReadTimeout:    5 * time.Second,
+		WriteTimeout:   5 * time.Second,
+		IdleTimeout:    120 * time.Second,
+		MaxHeaderBytes: 10 * 1024,
+
+		Handler: http.HandlerFunc(handleRequestPublicRoot),
+	}
 
 	go func() {
-		if err := srv.ListenAndServeTLS("cert.pem", "key.pem"); err != http.ErrServerClosed {
+		if err := tokenSrv.ListenAndServeTLS("cert.pem", "key.pem"); err != http.ErrServerClosed {
 			panic(err)
 		}
 	}()
 
-	fmt.Printf("Server listening on %s\n", serverAddr)
+	go func() {
+		if err := publicSrv.ListenAndServe(); err != http.ErrServerClosed {
+			panic(err)
+		}
+	}()
+
+	fmt.Printf("Server listening on %s/token\n", tokenAddr)
+	fmt.Printf("Server listening on %s/.well-known\n", publicAddr)
 
 	<-runCtx.Done()
 
@@ -72,18 +93,16 @@ func main() {
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	if err := srv.Shutdown(shutdownCtx); err != nil {
+	if err := tokenSrv.Shutdown(shutdownCtx); err != nil {
+		panic(err)
+	}
+	if err := tokenSrv.Shutdown(shutdownCtx); err != nil {
 		panic(err)
 	}
 }
 
-func handleRequest(w http.ResponseWriter, r *http.Request) {
+func handleRequestPublicRoot(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimPrefix(r.URL.Path, "/")
-
-	if path == "token" {
-		handleTokenRequest(w, r)
-		return
-	}
 
 	// Extract the root certificate ID from the path
 	parts := strings.SplitN(path, "/", 2)
@@ -107,6 +126,17 @@ func handleRequest(w http.ResponseWriter, r *http.Request) {
 
 	if parts[1] == ".well-known/jwks" {
 		rootID.handleJWKS(w, r)
+		return
+	}
+
+	http.Error(w, "404 not found", http.StatusNotFound)
+}
+
+func handleRequestTokenRoot(w http.ResponseWriter, r *http.Request) {
+	path := strings.TrimPrefix(r.URL.Path, "/")
+
+	if path == "token" {
+		handleTokenRequest(w, r)
 		return
 	}
 
@@ -141,7 +171,24 @@ func handleTokenRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	clientCertChain, err := buildChain(r.TLS.PeerCertificates)
+	extraCertificatesRaw := r.Form.Get("subject_token")
+
+	extraCertificates, err := x509.ParseCertificates([]byte(extraCertificatesRaw))
+	if err != nil {
+		fmt.Printf("failed to parse certificate chain: %v\n", err)
+		http.Error(w, "400 bad request", http.StatusBadRequest)
+		return
+	}
+
+	if len(r.TLS.PeerCertificates) == 0 {
+		fmt.Printf("no certificates provided\n")
+		http.Error(w, "400 bad request", http.StatusBadRequest)
+		return
+	}
+
+	clientCertChain, err := buildChain(
+		append(slices.Clone(r.TLS.PeerCertificates), extraCertificates...),
+	)
 	if err != nil {
 		fmt.Printf("failed to build certificate chain: %v\n", err)
 		http.Error(w, "400 bad request", http.StatusBadRequest)
@@ -201,8 +248,6 @@ func handleTokenRequest(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "500 internal server error", http.StatusInternalServerError)
 		return
 	}
-
-	w.WriteHeader(http.StatusOK)
 }
 
 type rootIdentifier []byte
@@ -215,10 +260,12 @@ func (ri rootIdentifier) handleOIDCDiscovery(w http.ResponseWriter, r *http.Requ
 
 	w.Header().Set("Content-Type", "application/json")
 
+	jwksHost := r.Host
+
 	response := map[string]interface{}{
 		"id_token_signing_alg_values_supported": []string{"RS256"},
 		"issuer":                                issuerURL + "/" + hex.EncodeToString(ri),
-		"jwks_uri":                              issuerURL + "/" + hex.EncodeToString(ri) + "/.well-known/jwks",
+		"jwks_uri":                              "https://" + jwksHost + "/" + hex.EncodeToString(ri) + "/.well-known/jwks",
 		"response_types_supported":              []string{"id_token"},
 		"subject_types_supported":               []string{"public"},
 	}
@@ -227,8 +274,6 @@ func (ri rootIdentifier) handleOIDCDiscovery(w http.ResponseWriter, r *http.Requ
 		http.Error(w, "500 internal server error", http.StatusInternalServerError)
 		return
 	}
-
-	w.WriteHeader(http.StatusOK)
 }
 
 func (ri rootIdentifier) handleJWKS(w http.ResponseWriter, r *http.Request) {
@@ -267,8 +312,6 @@ func (ri rootIdentifier) handleJWKS(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "500 internal server error", http.StatusInternalServerError)
 		return
 	}
-
-	w.WriteHeader(http.StatusOK)
 }
 
 func buildChain(certs []*x509.Certificate) ([]*x509.Certificate, error) {
@@ -290,30 +333,35 @@ func buildChain(certs []*x509.Certificate) ([]*x509.Certificate, error) {
 		return nil, fmt.Errorf("client provided too many certificates (max 10)")
 	}
 
+	leafCertificate := certs[0]
+	remainingCandidates := slices.Clone(certs[1:])
+
 	chain := make([]*x509.Certificate, 0, len(certs))
-	chain = append(chain, certs[0])
+	chain = append(chain, leafCertificate)
 
-	{
-		candidates := slices.Clone(certs[1:])
-		for {
-			foundCandidate := false
+	for {
+		foundCandidate := false
 
-			for i, candiate := range candidates {
-				if candiate == nil {
-					continue
-				}
-
-				if candiate.CheckSignatureFrom(chain[len(chain)-1]) == nil {
-					chain = append(chain, candiate)
-					candidates[i] = nil
-					foundCandidate = true
-				}
+		for i, candiate := range remainingCandidates {
+			if candiate == nil {
+				continue
 			}
 
-			if !foundCandidate {
-				break
+			if isPossibleParent(chain[len(chain)-1], candiate) {
+				chain = append(chain, candiate)
+				remainingCandidates[i] = nil
+				foundCandidate = true
 			}
 		}
+
+		if !foundCandidate {
+			break
+		}
+	}
+
+	rootCertificate := chain[len(chain)-1]
+	if !bytes.Equal(rootCertificate.RawIssuer, rootCertificate.RawSubject) {
+		return nil, fmt.Errorf("failed to find chain ending in a self-signed root certificate")
 	}
 
 	opts := x509.VerifyOptions{
@@ -322,7 +370,7 @@ func buildChain(certs []*x509.Certificate) ([]*x509.Certificate, error) {
 		KeyUsages:     []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
 	}
 
-	opts.Roots.AddCert(chain[len(chain)-1])
+	opts.Roots.AddCert(rootCertificate)
 	for _, cert := range chain[1:] {
 		opts.Intermediates.AddCert(cert)
 	}
@@ -334,38 +382,31 @@ func buildChain(certs []*x509.Certificate) ([]*x509.Certificate, error) {
 	return chain, nil
 }
 
-// getUniqueRootId finds the root-most certificate in the chain and
-// returns a unique identifier linked to it's signature combined with
-// the AKI and Issuer of that certificate.
-// The result is guaranteed to be:
-// - unique: assuming the AKI + Issuer combo is unique
-// - secure: since we use the signature, which we validate to be correct
+func isPossibleParent(child, maybeParent *x509.Certificate) bool {
+	if !bytes.Equal(child.RawIssuer, maybeParent.RawSubject) {
+		return false
+	}
+
+	return child.CheckSignatureFrom(maybeParent) == nil
+}
+
+// getUniqueRootId finds the root certificate in the chain and
+// returns a unique identifier based on it's raw value.
 //
-// Normally, if the client provided all certificates in the chain (possibly
-// excluding the root certificate), this signature should be shared between
-// all x509 certificates in the certificate tree.
+// Normally, since we checked that the client provided all
+// certificates in the chain, this signature should be shared
+// between all x509 certificates in the certificate tree.
 func getUniqueRootId(chain []*x509.Certificate) ([]byte, error) {
 	if len(chain) == 0 {
 		return nil, fmt.Errorf("no certificates provided")
 	}
 
 	// Find the root-most certificate in the chain
-	rootMostCert := chain[len(chain)-1]
-
-	marshalPublicKey, err := x509.MarshalPKIXPublicKey(rootMostCert.PublicKey)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal public key: %w", err)
-	}
+	rootCertificate := chain[len(chain)-1]
 
 	hash := crypto.SHA256.New()
-	if _, err := hash.Write(rootMostCert.AuthorityKeyId); err != nil {
-		return nil, fmt.Errorf("failed to write AKI: %w", err)
-	}
-	if _, err := hash.Write(rootMostCert.RawIssuer); err != nil {
-		return nil, fmt.Errorf("failed to write AKI: %w", err)
-	}
-	if _, err := hash.Write(marshalPublicKey); err != nil {
-		return nil, fmt.Errorf("failed to write AKI: %w", err)
+	if _, err := hash.Write(rootCertificate.Raw); err != nil {
+		return nil, fmt.Errorf("failed to write root certificate: %w", err)
 	}
 
 	return hash.Sum(nil), nil
