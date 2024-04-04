@@ -22,6 +22,12 @@ import (
 	"filippo.io/keygen"
 	jose "github.com/go-jose/go-jose/v4"
 	jwtgen "github.com/golang-jwt/jwt/v5"
+	"golang.org/x/crypto/acme/autocert"
+)
+
+const (
+	tokenEndpoint    = "token.tim-ramlot-gcp.jetstacker.net"
+	discoverEndpoint = "discover.tim-ramlot-gcp.jetstacker.net"
 )
 
 var secretKeyID = "key1"
@@ -31,61 +37,61 @@ var secretKey = []byte{
 	0x7b, 0xce, 0xb0, 0xad, 0x78, 0xa9, 0xb6, 0x7f,
 	0x22, 0xd9, 0x80, 0x34, 0x83, 0x43, 0x9d, 0x53,
 }
-var issuerURL = "test.com"
+var issuerURL = "https://" + discoverEndpoint
 
 func main() {
-	tokenAddr := "0.0.0.0:7000"
-	publicAddr := "0.0.0.0:8000"
+	addr := "0.0.0.0:443"
 
 	runCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, os.Kill)
 	defer stop()
 
-	tlsConfig := &tls.Config{
-		ClientAuth: tls.RequireAnyClientCert,
-		MinVersion: tls.VersionTLS12,
+	m := &autocert.Manager{
+		Cache:      autocert.DirCache("secret-dir"),
+		Prompt:     autocert.AcceptTOS,
+		Email:      "tim.ramlot@venafi.com",
+		HostPolicy: autocert.HostWhitelist(tokenEndpoint, discoverEndpoint),
+	}
+
+	tokenTLS := m.TLSConfig()
+	tokenTLS.ClientAuth = tls.RequireAnyClientCert
+	tokenTLS.MinVersion = tls.VersionTLS12
+
+	discoverTLS := m.TLSConfig()
+	discoverTLS.MinVersion = tls.VersionTLS12
+
+	rootTLS := m.TLSConfig()
+	rootTLS.MinVersion = tls.VersionTLS12
+	rootTLS.GetConfigForClient = func(chi *tls.ClientHelloInfo) (*tls.Config, error) {
+		if strings.HasPrefix(chi.ServerName, "token") {
+			return tokenTLS, nil
+		}
+
+		return discoverTLS, nil
 	}
 
 	tokenSrv := &http.Server{
 		BaseContext: func(_ net.Listener) context.Context { return runCtx },
 
-		Addr:           tokenAddr,
+		Addr:           addr,
 		ReadTimeout:    5 * time.Second,
 		WriteTimeout:   5 * time.Second,
 		IdleTimeout:    120 * time.Second,
 		MaxHeaderBytes: 10 * 1024,
 
-		TLSConfig: tlsConfig,
+		TLSConfig: rootTLS,
 
-		Handler: http.HandlerFunc(handleRequestTokenRoot),
+		Handler: http.HandlerFunc(handleRequestRoot),
 	}
 	tokenSrv.SetKeepAlivesEnabled(false)
 
-	publicSrv := &http.Server{
-		BaseContext: func(_ net.Listener) context.Context { return runCtx },
-
-		Addr:           publicAddr,
-		ReadTimeout:    5 * time.Second,
-		WriteTimeout:   5 * time.Second,
-		IdleTimeout:    120 * time.Second,
-		MaxHeaderBytes: 10 * 1024,
-
-		Handler: http.HandlerFunc(handleRequestPublicRoot),
-	}
-
 	go func() {
-		if err := tokenSrv.ListenAndServeTLS("cert.pem", "key.pem"); err != http.ErrServerClosed {
+		if err := tokenSrv.ListenAndServeTLS("", ""); err != http.ErrServerClosed {
 			panic(err)
 		}
 	}()
 
-	go func() {
-		if err := publicSrv.ListenAndServe(); err != http.ErrServerClosed {
-			panic(err)
-		}
-	}()
-
-	fmt.Printf("Server listening on %s/token\n", tokenAddr)
-	fmt.Printf("Server listening on %s/.well-known\n", publicAddr)
+	fmt.Printf("Server listening on %s/token\n", addr)
+	fmt.Printf("Server listening on %s/.well-known\n", addr)
 
 	<-runCtx.Done()
 
@@ -101,8 +107,13 @@ func main() {
 	}
 }
 
-func handleRequestPublicRoot(w http.ResponseWriter, r *http.Request) {
+func handleRequestRoot(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimPrefix(r.URL.Path, "/")
+
+	if path == "token" {
+		handleTokenRequest(w, r)
+		return
+	}
 
 	// Extract the root certificate ID from the path
 	parts := strings.SplitN(path, "/", 2)
@@ -126,17 +137,6 @@ func handleRequestPublicRoot(w http.ResponseWriter, r *http.Request) {
 
 	if parts[1] == ".well-known/jwks" {
 		rootID.handleJWKS(w, r)
-		return
-	}
-
-	http.Error(w, "404 not found", http.StatusNotFound)
-}
-
-func handleRequestTokenRoot(w http.ResponseWriter, r *http.Request) {
-	path := strings.TrimPrefix(r.URL.Path, "/")
-
-	if path == "token" {
-		handleTokenRequest(w, r)
 		return
 	}
 
@@ -241,7 +241,7 @@ func handleTokenRequest(w http.ResponseWriter, r *http.Request) {
 	// Send the response
 	if err := json.NewEncoder(w).Encode(tokenResponse{
 		AccessToken:     jwt,
-		IssuedTokenType: "urn:ietf:params:oauth:token-type:access_token",
+		IssuedTokenType: "urn:ietf:params:oauth:token-type:jwt",
 		ExpiresIn:       int(expiresAt.Sub(issuedAt).Seconds()),
 	}); err != nil {
 		fmt.Printf("failed to encode response: %v\n", err)
