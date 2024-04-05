@@ -80,7 +80,7 @@ func main() {
 
 		TLSConfig: rootTLS,
 
-		Handler: http.HandlerFunc(handleRequestRoot),
+		Handler: http.HandlerFunc(jsonResponseHandlerWrappper(handleRequestRoot)),
 	}
 	tokenSrv.SetKeepAlivesEnabled(false)
 
@@ -107,106 +107,123 @@ func main() {
 	}
 }
 
-func handleRequestRoot(w http.ResponseWriter, r *http.Request) {
+type httpError struct {
+	HttpCode int    `json:"http_code"`
+	Message  string `json:"message"`
+}
+
+func NewHttpError(code int) *httpError {
+	return &httpError{
+		HttpCode: code,
+	}
+}
+
+func NewHttpErrorMessage(code int, message error) *httpError {
+	return &httpError{
+		HttpCode: code,
+		Message:  message.Error(),
+	}
+}
+
+func jsonResponseHandlerWrappper(handler func(http.ResponseWriter, *http.Request) *httpError) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if err := handler(w, r); err != nil {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(err.HttpCode)
+
+			if err.Message != "" {
+				if err := json.NewEncoder(w).Encode(err); err != nil {
+					http.Error(w, "failed to encode error message", http.StatusInternalServerError)
+				}
+			}
+		}
+	}
+}
+
+type tokenResponse struct {
+	AccessToken     string `json:"access_token"`
+	IssuedTokenType string `json:"issued_token_type"`
+	ExpiresIn       int    `json:"expires_in"`
+}
+
+func handleRequestRoot(w http.ResponseWriter, r *http.Request) *httpError {
 	path := strings.TrimPrefix(r.URL.Path, "/")
 
 	if path == "token" {
-		handleTokenRequest(w, r)
-		return
+		return handleTokenRequest(w, r)
 	}
 
 	// Extract the root certificate ID from the path
 	parts := strings.SplitN(path, "/", 2)
 	if len(parts) != 2 || len(parts[0]) != 64 {
-		http.Error(w, "404 not found", http.StatusNotFound)
-		return
+		return NewHttpError(http.StatusNotFound)
 	}
 
 	rootIDRaw, err := hex.DecodeString(parts[0])
 	if err != nil {
-		http.Error(w, "404 not found", http.StatusNotFound)
-		return
+		return NewHttpError(http.StatusNotFound)
 	}
 
 	rootID := rootIdentifier(rootIDRaw)
 
 	if parts[1] == ".well-known/openid-configuration" {
-		rootID.handleOIDCDiscovery(w, r)
-		return
+		return rootID.handleOIDCDiscovery(w, r)
 	}
 
 	if parts[1] == ".well-known/jwks" {
-		rootID.handleJWKS(w, r)
-		return
+		return rootID.handleJWKS(w, r)
 	}
 
-	http.Error(w, "404 not found", http.StatusNotFound)
+	return NewHttpError(http.StatusNotFound)
 }
 
-func handleTokenRequest(w http.ResponseWriter, r *http.Request) {
+func handleTokenRequest(w http.ResponseWriter, r *http.Request) *httpError {
 	if r.Method != http.MethodPost {
-		http.Error(w, "405 method not allowed", http.StatusMethodNotAllowed)
-		return
+		return NewHttpError(http.StatusMethodNotAllowed)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 
 	// Decode the form data
 	if err := r.ParseForm(); err != nil {
-		fmt.Printf("failed to parse form: %v\n", err)
-		http.Error(w, "400 bad request", http.StatusBadRequest)
-		return
+		return NewHttpErrorMessage(http.StatusBadRequest, fmt.Errorf("failed to parse form: %w", err))
 	}
 
 	// Check the form data
 	if r.Form.Get("grant_type") != "urn:ietf:params:oauth:grant-type:token-exchange" {
-		fmt.Printf("invalid grant type: %v\n", r.Form.Get("grant_type"))
-		http.Error(w, "400 bad request", http.StatusBadRequest)
-		return
+		return NewHttpErrorMessage(http.StatusBadRequest, fmt.Errorf("invalid grant type: %s", r.Form.Get("grant_type")))
 	}
 
 	if r.Form.Get("subject_token_type") != "urn:ietf:params:oauth:token-type:tls-client-auth" {
-		fmt.Printf("invalid subject token type: %v\n", r.Form.Get("subject_token_type"))
-		http.Error(w, "400 bad request", http.StatusBadRequest)
-		return
+		return NewHttpErrorMessage(http.StatusBadRequest, fmt.Errorf("invalid subject token type: %s", r.Form.Get("subject_token_type")))
 	}
 
 	extraCertificatesRaw := r.Form.Get("subject_token")
 
 	extraCertificates, err := x509.ParseCertificates([]byte(extraCertificatesRaw))
 	if err != nil {
-		fmt.Printf("failed to parse certificate chain: %v\n", err)
-		http.Error(w, "400 bad request", http.StatusBadRequest)
-		return
+		return NewHttpErrorMessage(http.StatusBadRequest, fmt.Errorf("failed to parse certificate chain: %w", err))
 	}
 
 	if len(r.TLS.PeerCertificates) == 0 {
-		fmt.Printf("no certificates provided\n")
-		http.Error(w, "400 bad request", http.StatusBadRequest)
-		return
+		return NewHttpErrorMessage(http.StatusBadRequest, fmt.Errorf("no certificates provided"))
 	}
 
 	clientCertChain, err := buildChain(
 		append(slices.Clone(r.TLS.PeerCertificates), extraCertificates...),
 	)
 	if err != nil {
-		fmt.Printf("failed to build certificate chain: %v\n", err)
-		http.Error(w, "400 bad request", http.StatusBadRequest)
-		return
+		return NewHttpErrorMessage(http.StatusBadRequest, fmt.Errorf("failed to build certificate chain: %w", err))
 	}
 
 	rootId, err := getUniqueRootId(clientCertChain)
 	if err != nil {
-		fmt.Printf("failed to get unique root id: %v\n", err)
-		http.Error(w, "500 internal server error", http.StatusInternalServerError)
-		return
+		return NewHttpErrorMessage(http.StatusInternalServerError, fmt.Errorf("failed to get unique root id: %w", err))
 	}
 
 	key, kid, err := generatePrivateKey(rootId)
 	if err != nil {
-		fmt.Printf("failed to generate private key: %v\n", err)
-		http.Error(w, "500 internal server error", http.StatusInternalServerError)
-		return
+		return NewHttpErrorMessage(http.StatusInternalServerError, fmt.Errorf("failed to generate private key: %w", err))
 	}
 
 	audience := r.Form.Get("audience")
@@ -227,15 +244,7 @@ func handleTokenRequest(w http.ResponseWriter, r *http.Request) {
 
 	jwt, err := token.SignedString(key)
 	if err != nil {
-		fmt.Printf("failed to sign token: %v\n", err)
-		http.Error(w, "500 internal server error", http.StatusInternalServerError)
-		return
-	}
-
-	type tokenResponse struct {
-		AccessToken     string `json:"access_token"`
-		IssuedTokenType string `json:"issued_token_type"`
-		ExpiresIn       int    `json:"expires_in"`
+		return NewHttpErrorMessage(http.StatusInternalServerError, fmt.Errorf("failed to sign token: %w", err))
 	}
 
 	// Send the response
@@ -244,18 +253,17 @@ func handleTokenRequest(w http.ResponseWriter, r *http.Request) {
 		IssuedTokenType: "urn:ietf:params:oauth:token-type:jwt",
 		ExpiresIn:       int(expiresAt.Sub(issuedAt).Seconds()),
 	}); err != nil {
-		fmt.Printf("failed to encode response: %v\n", err)
-		http.Error(w, "500 internal server error", http.StatusInternalServerError)
-		return
+		return NewHttpErrorMessage(http.StatusInternalServerError, fmt.Errorf("failed to encode response: %w", err))
 	}
+
+	return nil
 }
 
 type rootIdentifier []byte
 
-func (ri rootIdentifier) handleOIDCDiscovery(w http.ResponseWriter, r *http.Request) {
+func (ri rootIdentifier) handleOIDCDiscovery(w http.ResponseWriter, r *http.Request) *httpError {
 	if r.Method != http.MethodGet {
-		http.Error(w, "405 method not allowed", http.StatusMethodNotAllowed)
-		return
+		return NewHttpError(http.StatusMethodNotAllowed)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -271,15 +279,15 @@ func (ri rootIdentifier) handleOIDCDiscovery(w http.ResponseWriter, r *http.Requ
 	}
 
 	if err := json.NewEncoder(w).Encode(response); err != nil {
-		http.Error(w, "500 internal server error", http.StatusInternalServerError)
-		return
+		return NewHttpErrorMessage(http.StatusInternalServerError, fmt.Errorf("failed to encode response: %w", err))
 	}
+
+	return nil
 }
 
-func (ri rootIdentifier) handleJWKS(w http.ResponseWriter, r *http.Request) {
+func (ri rootIdentifier) handleJWKS(w http.ResponseWriter, r *http.Request) *httpError {
 	if r.Method != http.MethodGet {
-		http.Error(w, "405 method not allowed", http.StatusMethodNotAllowed)
-		return
+		return NewHttpError(http.StatusMethodNotAllowed)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -291,8 +299,7 @@ func (ri rootIdentifier) handleJWKS(w http.ResponseWriter, r *http.Request) {
 		var err error
 		pk, kid, err = generatePrivateKey(ri)
 		if err != nil {
-			http.Error(w, "500 internal server error", http.StatusInternalServerError)
-			return
+			return NewHttpError(http.StatusInternalServerError)
 		}
 		publicKey = pk.Public()
 	}
@@ -309,9 +316,10 @@ func (ri rootIdentifier) handleJWKS(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := json.NewEncoder(w).Encode(response); err != nil {
-		http.Error(w, "500 internal server error", http.StatusInternalServerError)
-		return
+		return NewHttpError(http.StatusInternalServerError)
 	}
+
+	return nil
 }
 
 func buildChain(certs []*x509.Certificate) ([]*x509.Certificate, error) {
@@ -362,6 +370,9 @@ func buildChain(certs []*x509.Certificate) ([]*x509.Certificate, error) {
 	rootCertificate := chain[len(chain)-1]
 	if !bytes.Equal(rootCertificate.RawIssuer, rootCertificate.RawSubject) {
 		return nil, fmt.Errorf("failed to find chain ending in a self-signed root certificate")
+	}
+	if rootCertificate.CheckSignatureFrom(rootCertificate) != nil {
+		return nil, fmt.Errorf("root certificate signature is invalid")
 	}
 
 	opts := x509.VerifyOptions{
