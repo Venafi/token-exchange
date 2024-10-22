@@ -1,28 +1,21 @@
 package main
 
 import (
-	"bytes"
 	"context"
-	"crypto"
-	"crypto/ecdsa"
-	"crypto/elliptic"
 	"crypto/tls"
 	"crypto/x509"
-	"encoding/hex"
-	"encoding/json"
+	"encoding/pem"
+	"flag"
 	"fmt"
-	"net"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
-	"slices"
-	"strings"
 	"time"
 
-	"filippo.io/keygen"
-	jose "github.com/go-jose/go-jose/v4"
-	jwtgen "github.com/golang-jwt/jwt/v5"
-	"golang.org/x/crypto/acme/autocert"
+	"token-exchange/fingerprint"
+	"token-exchange/logging"
+	"token-exchange/tokenserver"
 )
 
 const (
@@ -30,122 +23,126 @@ const (
 	discoverEndpoint = "discover.tim-ramlot-gcp.jetstacker.net"
 )
 
-var secretKeyID = "key1"
 var secretKey = []byte{
 	0x85, 0x04, 0xe2, 0xab, 0xd7, 0x62, 0x2a, 0x81,
 	0x44, 0x4b, 0xf4, 0x90, 0xa5, 0x56, 0xea, 0x4d,
 	0x7b, 0xce, 0xb0, 0xad, 0x78, 0xa9, 0xb6, 0x7f,
 	0x22, 0xd9, 0x80, 0x34, 0x83, 0x43, 0x9d, 0x53,
 }
+
 var issuerURL = "https://" + discoverEndpoint
 
-func main() {
-	addr := "0.0.0.0:443"
+func run(ctx context.Context, logger *slog.Logger) error {
+	var tlsChainLocation string
+	var tlsPrivateKeyLocation string
+	var trustBundleLocation string
 
-	runCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, os.Kill)
-	defer stop()
+	flag.StringVar(&tlsChainLocation, "tls-chain-location", "", "Required: filesystem location of TLS cert")
+	flag.StringVar(&tlsPrivateKeyLocation, "tls-private-key-location", "", "Required: filesystem location of TLS private key")
 
-	m := &autocert.Manager{
-		Cache:      autocert.DirCache("secret-dir"),
-		Prompt:     autocert.AcceptTOS,
-		Email:      "tim.ramlot@venafi.com",
-		HostPolicy: autocert.HostWhitelist(tokenEndpoint, discoverEndpoint),
+	flag.StringVar(&trustBundleLocation, "trust-bundle-location", "", "Required: filesystem location of TLS trust bundle for client certs")
+
+	flag.Parse()
+
+	if tlsChainLocation == "" {
+		return fmt.Errorf("missing required flag: tls-chain-location")
 	}
 
-	tokenTLS := m.TLSConfig()
-	tokenTLS.ClientAuth = tls.RequireAnyClientCert
-	tokenTLS.MinVersion = tls.VersionTLS12
+	if tlsPrivateKeyLocation == "" {
+		return fmt.Errorf("missing required flag: tls-private-key-location")
+	}
 
-	discoverTLS := m.TLSConfig()
-	discoverTLS.MinVersion = tls.VersionTLS12
+	if trustBundleLocation == "" {
+		return fmt.Errorf("missing required flag: trust-bundle-location")
+	}
 
-	rootTLS := m.TLSConfig()
-	rootTLS.MinVersion = tls.VersionTLS12
-	rootTLS.GetConfigForClient = func(chi *tls.ClientHelloInfo) (*tls.Config, error) {
-		if strings.HasPrefix(chi.ServerName, "token") {
-			return tokenTLS, nil
+	cert, err := tls.LoadX509KeyPair(tlsChainLocation, tlsPrivateKeyLocation)
+	if err != nil {
+		return fmt.Errorf("failed to load cert %s / key %s: %s", tlsChainLocation, tlsPrivateKeyLocation, err)
+	}
+
+	rawBundle, err := os.ReadFile(trustBundleLocation)
+	if err != nil {
+		return fmt.Errorf("failed to read trust bundle from %q: %s", trustBundleLocation, err)
+	}
+
+	trustedCertsParsed, err := decodePEM(rawBundle)
+	if err != nil {
+		return err
+	}
+
+	trustPool := x509.NewCertPool()
+	rootMap := make(fingerprint.RootMap)
+
+	for _, cert := range trustedCertsParsed {
+		trustPool.AddCert(cert)
+
+		fprint := fingerprint.For(cert)
+
+		sk, err := fingerprint.SigningKey(fprint, secretKey)
+		if err != nil {
+			return err
 		}
 
-		return discoverTLS, nil
+		rootMap[fprint] = sk
 	}
 
-	tokenSrv := &http.Server{
-		BaseContext: func(_ net.Listener) context.Context { return runCtx },
+	tokenServerCfg := &tokenserver.Config{
+		Address: "0.0.0.0:9966",
 
-		Addr:           addr,
-		ReadTimeout:    5 * time.Second,
-		WriteTimeout:   5 * time.Second,
-		IdleTimeout:    120 * time.Second,
-		MaxHeaderBytes: 10 * 1024,
+		Certificate: cert,
 
-		TLSConfig: rootTLS,
+		TrustPool: trustPool,
 
-		Handler: http.HandlerFunc(jsonResponseHandlerWrappper(handleRequestRoot)),
+		RootMap: rootMap,
 	}
-	tokenSrv.SetKeepAlivesEnabled(false)
+
+	tokenServer, err := tokenserver.Create(ctx, tokenServerCfg)
 
 	go func() {
-		if err := tokenSrv.ListenAndServeTLS("", ""); err != http.ErrServerClosed {
-			panic(err)
+		err := tokenServer.ListenAndServeTLS("", "")
+
+		if err != http.ErrServerClosed {
+			logger.Error("token server error", "err", err)
 		}
 	}()
 
-	fmt.Printf("Server listening on %s/token\n", addr)
-	fmt.Printf("Server listening on %s/.well-known\n", addr)
+	// TODO: wellknown
 
-	<-runCtx.Done()
+	logger.Info("token server listening", "addr", tokenServerCfg.Address)
 
-	fmt.Println("Shutting down server...")
+	//fmt.Printf("Server listening on %s/.well-known\n", addr)
+
+	<-ctx.Done()
+
+	logger.Info("shutting down server")
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	if err := tokenSrv.Shutdown(shutdownCtx); err != nil {
-		panic(err)
+
+	if err := tokenServer.Shutdown(shutdownCtx); err != nil {
+		return fmt.Errorf("failed to shut down token server: %s", err)
 	}
-	if err := tokenSrv.Shutdown(shutdownCtx); err != nil {
-		panic(err)
-	}
+
+	return nil
 }
 
-type httpError struct {
-	HttpCode int    `json:"http_code"`
-	Message  string `json:"message"`
-}
+func main() {
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 
-func NewHttpError(code int) *httpError {
-	return &httpError{
-		HttpCode: code,
-	}
-}
+	ctx := logging.ContextWithLogger(context.Background(), logger)
 
-func NewHttpErrorMessage(code int, message error) *httpError {
-	return &httpError{
-		HttpCode: code,
-		Message:  message.Error(),
+	runCtx, stop := signal.NotifyContext(ctx, os.Interrupt, os.Kill)
+	defer stop()
+
+	err := run(runCtx, logger)
+	if err != nil {
+		logger.Error("fatal error", "err", err)
+		os.Exit(1)
 	}
 }
 
-func jsonResponseHandlerWrappper(handler func(http.ResponseWriter, *http.Request) *httpError) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		if err := handler(w, r); err != nil {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(err.HttpCode)
-
-			if err.Message != "" {
-				if err := json.NewEncoder(w).Encode(err); err != nil {
-					http.Error(w, "failed to encode error message", http.StatusInternalServerError)
-				}
-			}
-		}
-	}
-}
-
-type tokenResponse struct {
-	AccessToken     string `json:"access_token"`
-	IssuedTokenType string `json:"issued_token_type"`
-	ExpiresIn       int    `json:"expires_in"`
-}
-
+/*
 func handleRequestRoot(w http.ResponseWriter, r *http.Request) *httpError {
 	path := strings.TrimPrefix(r.URL.Path, "/")
 
@@ -198,22 +195,30 @@ func handleTokenRequest(w http.ResponseWriter, r *http.Request) *httpError {
 		return NewHttpErrorMessage(http.StatusBadRequest, fmt.Errorf("invalid subject token type: %s", r.Form.Get("subject_token_type")))
 	}
 
-	extraCertificatesRaw := r.Form.Get("subject_token")
+	var clientCertChain []*x509.Certificate
 
-	extraCertificates, err := x509.ParseCertificates([]byte(extraCertificatesRaw))
-	if err != nil {
-		return NewHttpErrorMessage(http.StatusBadRequest, fmt.Errorf("failed to parse certificate chain: %w", err))
-	}
+	if len(r.TLS.VerifiedChains) > 0 {
+		// TODO: maybe handle other chains
+		clientCertChain = r.TLS.VerifiedChains[0]
+	} else {
+		extraCertificatesRaw := r.Form.Get("subject_token")
 
-	if len(r.TLS.PeerCertificates) == 0 {
-		return NewHttpErrorMessage(http.StatusBadRequest, fmt.Errorf("no certificates provided"))
-	}
+		extraCertificates, err := x509.ParseCertificates([]byte(extraCertificatesRaw))
+		if err != nil {
+			return NewHttpErrorMessage(http.StatusBadRequest, fmt.Errorf("failed to parse certificate chain: %w", err))
+		}
 
-	clientCertChain, err := buildChain(
-		append(slices.Clone(r.TLS.PeerCertificates), extraCertificates...),
-	)
-	if err != nil {
-		return NewHttpErrorMessage(http.StatusBadRequest, fmt.Errorf("failed to build certificate chain: %w", err))
+		if len(r.TLS.PeerCertificates) == 0 {
+			return NewHttpErrorMessage(http.StatusBadRequest, fmt.Errorf("no certificates provided"))
+		}
+
+		clientCertChain, err = buildChain(
+			append(slices.Clone(r.TLS.PeerCertificates), extraCertificates...),
+		)
+		if err != nil {
+			return NewHttpErrorMessage(http.StatusBadRequest, fmt.Errorf("failed to build certificate chain: %w", err))
+		}
+
 	}
 
 	rootId, err := getUniqueRootId(clientCertChain)
@@ -438,4 +443,35 @@ func generatePrivateKey(rootId []byte) (*ecdsa.PrivateKey, string, error) {
 	}
 
 	return pk, secretKeyID, nil
+}
+*/
+
+// decodePEM will decode a concatenated set of PEM encoded x509 Certificates.
+// Taken from cert-manager pki.DecodeX509CertificateSetBytes
+func decodePEM(pemBytes []byte) ([]*x509.Certificate, error) {
+	certs := []*x509.Certificate{}
+
+	var block *pem.Block
+
+	for {
+		// decode certificate PEM
+		block, pemBytes = pem.Decode(pemBytes)
+		if block == nil {
+			break
+		}
+
+		// parse the certificate
+		cert, err := x509.ParseCertificate(block.Bytes)
+		if err != nil {
+			return nil, fmt.Errorf("error parsing TLS certificate: %s", err)
+		}
+
+		certs = append(certs, cert)
+	}
+
+	if len(certs) == 0 {
+		return nil, fmt.Errorf("error decoding certificate PEM block")
+	}
+
+	return certs, nil
 }
