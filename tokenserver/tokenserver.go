@@ -24,6 +24,8 @@ type Config struct {
 	TrustPool *x509.CertPool
 
 	RootMap fingerprint.RootMap
+
+	DiscoveryEndpoint string
 }
 
 func Create(ctx context.Context, config *Config) (*http.Server, error) {
@@ -47,7 +49,7 @@ func Create(ctx context.Context, config *Config) (*http.Server, error) {
 
 		TLSConfig: tlsCfg,
 
-		Handler: newServer(config.RootMap),
+		Handler: newServer(config.RootMap, config.DiscoveryEndpoint),
 	}
 
 	tokenSrv.SetKeepAlivesEnabled(false)
@@ -55,14 +57,13 @@ func Create(ctx context.Context, config *Config) (*http.Server, error) {
 	return tokenSrv, nil
 }
 
-func newServer(roots fingerprint.RootMap) *tokenServer {
+func newServer(roots fingerprint.RootMap, discoverEndpoint string) *tokenServer {
 	mux := http.NewServeMux()
 
 	srv := &tokenServer{
 		roots: roots,
 
-		// TODO
-		issuerURL: "https://example.com",
+		issuerURL: "https://" + discoverEndpoint,
 
 		mux: mux,
 	}

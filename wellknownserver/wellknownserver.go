@@ -21,6 +21,8 @@ type Config struct {
 	Certificate tls.Certificate
 
 	RootMap fingerprint.RootMap
+
+	DiscoveryEndpoint string
 }
 
 func Create(ctx context.Context, config *Config) (*http.Server, error) {
@@ -42,20 +44,19 @@ func Create(ctx context.Context, config *Config) (*http.Server, error) {
 
 		TLSConfig: tlsCfg,
 
-		Handler: newServer(config.RootMap),
+		Handler: newServer(config.RootMap, config.DiscoveryEndpoint),
 	}
 
 	return wellKnownSrv, nil
 }
 
-func newServer(roots fingerprint.RootMap) *wellKnownServer {
+func newServer(roots fingerprint.RootMap, discoverEndpoint string) *wellKnownServer {
 	mux := http.NewServeMux()
 
 	srv := &wellKnownServer{
 		roots: roots,
 
-		// TODO
-		issuerURL: "https://example.com",
+		issuerURL: "https://" + discoverEndpoint,
 
 		mux: mux,
 	}
