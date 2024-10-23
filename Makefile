@@ -47,37 +47,43 @@ container-linux-arm64: Containerfile $(bindir)/release/token-exchange-linux-arm6
 kind-load: container-linux-$(host)
 	kind load docker-image --name $(kind_cluster) cert-manager.local/token-exchange:latest
 
+CERT_MANAGER_VERSION=v1.16.1
+TRUST_MANAGER_VERSION=v0.12.0
+CSI_DRIVER_SPIFFE_VERSION=v0.8.1
+
 .PHONY: kind-load-deps
 kind-load-deps:
-	docker pull quay.io/jetstack/cert-manager-controller:v1.16.1
-	docker pull quay.io/jetstack/cert-manager-webhook:v1.16.1
-	docker pull quay.io/jetstack/cert-manager-acmesolver:v1.16.1
-	docker pull quay.io/jetstack/cert-manager-cainjector:v1.16.1
-	docker pull quay.io/jetstack/cert-manager-startupapicheck:v1.16.1
-	docker pull quay.io/jetstack/trust-manager:v0.12.0
-	docker pull quay.io/jetstack/cert-manager-csi-driver-spiffe:v0.8.1
-	docker pull quay.io/jetstack/cert-manager-csi-driver-spiffe-approver:v0.8.1
-	kind load docker-image --name $(kind_cluster) quay.io/jetstack/cert-manager-controller:v1.16.1
-	kind load docker-image --name $(kind_cluster) quay.io/jetstack/cert-manager-webhook:v1.16.1
-	kind load docker-image --name $(kind_cluster) quay.io/jetstack/cert-manager-acmesolver:v1.16.1
-	kind load docker-image --name $(kind_cluster) quay.io/jetstack/cert-manager-cainjector:v1.16.1
-	kind load docker-image --name $(kind_cluster) quay.io/jetstack/cert-manager-startupapicheck:v1.16.1
-	kind load docker-image --name $(kind_cluster) quay.io/jetstack/trust-manager:v0.12.0
-	kind load docker-image --name $(kind_cluster) quay.io/jetstack/cert-manager-csi-driver-spiffe:v0.8.1
-	kind load docker-image --name $(kind_cluster) quay.io/jetstack/cert-manager-csi-driver-spiffe-approver:v0.8.1
+	docker pull quay.io/jetstack/cert-manager-controller:$(CERT_MANAGER_VERSION)
+	docker pull quay.io/jetstack/cert-manager-webhook:$(CERT_MANAGER_VERSION)
+	docker pull quay.io/jetstack/cert-manager-acmesolver:$(CERT_MANAGER_VERSION)
+	docker pull quay.io/jetstack/cert-manager-cainjector:$(CERT_MANAGER_VERSION)
+	docker pull quay.io/jetstack/cert-manager-startupapicheck:$(CERT_MANAGER_VERSION)
+	docker pull quay.io/jetstack/trust-manager:$(TRUST_MANAGER_VERSION)
+	docker pull quay.io/jetstack/cert-manager-csi-driver-spiffe:$(CSI_DRIVER_SPIFFE_VERSION)
+	docker pull quay.io/jetstack/cert-manager-csi-driver-spiffe-approver:$(CSI_DRIVER_SPIFFE_VERSION)
+	kind load docker-image --name $(kind_cluster) quay.io/jetstack/cert-manager-controller:$(CERT_MANAGER_VERSION)
+	kind load docker-image --name $(kind_cluster) quay.io/jetstack/cert-manager-webhook:$(CERT_MANAGER_VERSION)
+	kind load docker-image --name $(kind_cluster) quay.io/jetstack/cert-manager-acmesolver:$(CERT_MANAGER_VERSION)
+	kind load docker-image --name $(kind_cluster) quay.io/jetstack/cert-manager-cainjector:$(CERT_MANAGER_VERSION)
+	kind load docker-image --name $(kind_cluster) quay.io/jetstack/cert-manager-startupapicheck:$(CERT_MANAGER_VERSION)
+	kind load docker-image --name $(kind_cluster) quay.io/jetstack/trust-manager:$(TRUST_MANAGER_VERSION)
+	kind load docker-image --name $(kind_cluster) quay.io/jetstack/cert-manager-csi-driver-spiffe:$(CSI_DRIVER_SPIFFE_VERSION)
+	kind load docker-image --name $(kind_cluster) quay.io/jetstack/cert-manager-csi-driver-spiffe-approver:$(CSI_DRIVER_SPIFFE_VERSION)
 
 .PHONY: kind-setup
 kind-setup:
 	helm install cert-manager jetstack/cert-manager \
 		--namespace cert-manager \
 		--create-namespace \
-		--version v1.16.1 \
+		--version $(CERT_MANAGER_VERSION) \
 		--set crds.enabled=true
-	helm upgrade trust-manager jetstack/trust-manager \
-		--install \
+	helm install trust-manager jetstack/trust-manager \
+		--version $(TRUST_MANAGER_VERSION) \
 		--namespace cert-manager \
 		--wait
-	helm upgrade -i -n cert-manager cert-manager-csi-driver-spiffe jetstack/cert-manager-csi-driver-spiffe --wait \
+	helm install cert-manager-csi-driver-spiffe jetstack/cert-manager-csi-driver-spiffe --wait \
+		--namespace cert-manager \
+		--version $(CSI_DRIVER_SPIFFE_VERSION) \
 		--set "app.logLevel=1" \
 		--set "app.trustDomain=my.trust.domain" \
 		--set "app.issuer.name=" \
@@ -85,12 +91,35 @@ kind-setup:
 		--set "app.issuer.group=" \
 		--set "app.runtimeIssuanceConfigMap=spiffe-issuer"
 
+.PHONY: port-forward-token
+port-forward-token:
+	kubectl port-forward -n token-exchange $(shell kubectl get pods -n token-exchange -l app=token-exchange -ojson | jq -r '.items[0].metadata.name') 9966:9966
+
+.PHONY: port-forward-wellknown
+port-forward-wellknown:
+	kubectl port-forward -n token-exchange $(shell kubectl get pods -n token-exchange -l app=token-exchange -ojson | jq -r '.items[0].metadata.name') 9119:9119
+
+curl_flags=-sS
+
 .PHONY: get-token
 get-token:
-	curl -v --cacert infrastructure/root.pem --cert infrastructure/client.crt --key infrastructure/client.key \
+	curl $(curl_flags) --cacert infrastructure/root.pem --cert infrastructure/client.crt --key infrastructure/client.key \
 		-XPOST \
 		-d "grant_type=urn:ietf:params:oauth:grant-type:token-exchange&subject_token_type=urn:ietf:params:oauth:token-type:tls-client-auth&&aud=abc123" \
-		https://localhost:9966/token
+		https://localhost:9966/token \
+		| jq
+
+.PHONY: get-openid-configuration
+get-openid-configuration:
+	curl $(curl_flags) --cacert infrastructure/root.pem \
+		https://localhost:9119/.well-known/78eb04b2a5e9b4a1e6f4bd4d31dcca7937ec1acb12c53f52e433adbfcfbcf178/openid-configuration \
+		| jq
+
+.PHONY: get-jwks
+get-jwks:
+	curl $(curl_flags) --cacert infrastructure/root.pem \
+		https://localhost:9119/.well-known/78eb04b2a5e9b4a1e6f4bd4d31dcca7937ec1acb12c53f52e433adbfcfbcf178/jwks \
+		| jq
 
 $(bindir)/release:
 	mkdir -p $@

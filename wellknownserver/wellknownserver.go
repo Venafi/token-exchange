@@ -56,9 +56,10 @@ func newServer(roots fingerprint.RootMap) *wellKnownServer {
 		mux: mux,
 	}
 
-	mux.HandleFunc("GET /.well-known/{rootIDHex}/openid-configuration", srvtool.JSON(srv.handleOpenIDConfiguration))
-	mux.HandleFunc("GET /.well-known/{rootIDHex}/jwks", srvtool.JSON(srv.handleJWKs))
-	mux.HandleFunc("GET /status", srvtool.JSON(srv.handleStatusRequest))
+	mux.HandleFunc("GET /.well-known/{rootIDHex}/openid-configuration", srvtool.JSONHandler(srv.handleOpenIDConfiguration))
+	mux.HandleFunc("GET /.well-known/{rootIDHex}/jwks", srvtool.JSONHandler(srv.handleJWKs))
+
+	mux.HandleFunc("GET /status", srvtool.JSONHandler(srv.handleStatusRequest))
 
 	return srv
 }
@@ -75,7 +76,7 @@ func (wks *wellKnownServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	wks.mux.ServeHTTP(w, r)
 }
 
-func (wks *wellKnownServer) extractRootID(r *http.Request) (fingerprint.Fingerprint, *srvtool.HTTPError) {
+func (wks *wellKnownServer) extractRootID(r *http.Request) (fingerprint.Fingerprint, srvtool.Response) {
 	rootIDHex := r.PathValue("rootIDHex")
 
 	if rootIDHex == "" {
@@ -106,39 +107,35 @@ type oidcConfigurationResponse struct {
 	JWKsURI string `json:"jwks_uri"`
 }
 
-func (wks *wellKnownServer) handleOpenIDConfiguration(w http.ResponseWriter, r *http.Request) (*srvtool.Response, *srvtool.HTTPError) {
+func (wks *wellKnownServer) handleOpenIDConfiguration(r *http.Request) srvtool.Response {
 	fprint, httpErr := wks.extractRootID(r)
 	if httpErr != nil {
-		return nil, httpErr
+		return httpErr
 	}
 
 	jwksHost := r.Host
 
-	return &srvtool.Response{
-		Body: oidcConfigurationResponse{
-			SupportedSigningAlgs:   []string{"RS256"}, // TODO: should depend on signing key type? haven't checked
-			SupportedResponseTypes: []string{"id_token"},
-			SupportedSubjectTypes:  []string{"public"},
+	return srvtool.Ok(oidcConfigurationResponse{
+		SupportedSigningAlgs:   []string{"RS256"}, // TODO: should depend on signing key type? haven't checked
+		SupportedResponseTypes: []string{"id_token"},
+		SupportedSubjectTypes:  []string{"public"},
 
-			Issuer: wks.issuerURL + "/" + fprint.Hex(),
+		Issuer: wks.issuerURL + "/" + fprint.Hex(),
 
-			JWKsURI: "https://" + jwksHost + "/" + fprint.Hex() + "/.well-known/jwks",
-		},
-	}, nil
+		JWKsURI: "https://" + jwksHost + "/" + fprint.Hex() + "/.well-known/jwks",
+	})
 }
 
-type jwksResponse struct{}
-
-func (wks *wellKnownServer) handleJWKs(w http.ResponseWriter, r *http.Request) (*srvtool.Response, *srvtool.HTTPError) {
+func (wks *wellKnownServer) handleJWKs(r *http.Request) srvtool.Response {
 	fprint, httpErr := wks.extractRootID(r)
 	if httpErr != nil {
-		return nil, httpErr
+		return httpErr
 	}
 
 	key, ok := wks.roots[fprint]
 	if !ok {
 		// shouldn't happen, extractRootID checks that it exists in wks.roots
-		return nil, srvtool.Error(http.StatusInternalServerError, "couldn't find signing key corresponding to fingerprint")
+		return srvtool.Error(http.StatusInternalServerError, "couldn't find signing key corresponding to fingerprint")
 	}
 
 	publicKey := key.Public()
@@ -154,19 +151,15 @@ func (wks *wellKnownServer) handleJWKs(w http.ResponseWriter, r *http.Request) (
 		},
 	}
 
-	return &srvtool.Response{
-		Body: response,
-	}, nil
+	return srvtool.Ok(response)
 }
 
 type statusMsg struct {
 	Status string `json:"status"`
 }
 
-func (wks *wellKnownServer) handleStatusRequest(w http.ResponseWriter, r *http.Request) (*srvtool.Response, *srvtool.HTTPError) {
-	return &srvtool.Response{
-		Body: statusMsg{
-			Status: "OK",
-		},
-	}, nil
+func (wks *wellKnownServer) handleStatusRequest(r *http.Request) srvtool.Response {
+	return srvtool.Ok(statusMsg{
+		Status: "OK",
+	})
 }
