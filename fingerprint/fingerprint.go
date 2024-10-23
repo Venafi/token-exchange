@@ -11,6 +11,19 @@ import (
 	"filippo.io/keygen"
 )
 
+func Decode(hexStr string) (Fingerprint, error) {
+	decodedIDRaw, err := hex.DecodeString(hexStr)
+	if err != nil {
+		return Fingerprint{}, fmt.Errorf("failed to decode fingerprint in path as valid hex: %s", err)
+	}
+
+	if len(decodedIDRaw) != sha256.Size {
+		return Fingerprint{}, fmt.Errorf("invalid size for decoded fingerprint: %d", len(decodedIDRaw))
+	}
+
+	return Fingerprint(decodedIDRaw), nil
+}
+
 type Fingerprint [sha256.Size]byte
 
 func (f Fingerprint) Hex() string {
@@ -19,6 +32,21 @@ func (f Fingerprint) Hex() string {
 
 func (f Fingerprint) String() string {
 	return f.Hex()
+}
+
+func (f Fingerprint) DeriveECDSASigningKey(secretKey []byte) (*ecdsa.PrivateKey, error) {
+	h := sha256.New()
+
+	// hash.Hash is documented to never return an error
+	_, _ = h.Write(f[:])
+	_, _ = h.Write(secretKey)
+
+	pk, err := keygen.ECDSA(elliptic.P256(), h.Sum(nil))
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate private key: %w", err)
+	}
+
+	return pk, nil
 }
 
 func For(c *x509.Certificate) Fingerprint {
@@ -33,21 +61,6 @@ func Rootmost(certs []*x509.Certificate) (Fingerprint, error) {
 	rootCertificate := certs[len(certs)-1]
 
 	return For(rootCertificate), nil
-}
-
-func SigningKey(fingerprint Fingerprint, secretKey []byte) (*ecdsa.PrivateKey, error) {
-	h := sha256.New()
-
-	// hash.Hash is documented to never return an error
-	_, _ = h.Write(fingerprint[:])
-	_, _ = h.Write(secretKey)
-
-	pk, err := keygen.ECDSA(elliptic.P256(), h.Sum(nil))
-	if err != nil {
-		return nil, fmt.Errorf("failed to generate private key: %w", err)
-	}
-
-	return pk, nil
 }
 
 type RootMap map[Fingerprint]*ecdsa.PrivateKey

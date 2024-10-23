@@ -96,6 +96,7 @@ spec:
   dnsNames:
   - "token-exchange.token-exchange.svc.cluster.local"
   - "token-exchange.token-exchange"
+  - "localhost"
   duration: 87600h  # 10 years
   privateKey:
     algorithm: ECDSA

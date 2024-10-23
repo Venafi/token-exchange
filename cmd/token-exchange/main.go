@@ -13,10 +13,11 @@ import (
 	"os/signal"
 	"time"
 
+	"github.com/go-logr/logr"
+
 	"token-exchange/fingerprint"
 	"token-exchange/tokenserver"
-
-	"github.com/go-logr/logr"
+	"token-exchange/wellknownserver"
 )
 
 const (
@@ -80,7 +81,9 @@ func run(ctx context.Context, logger *slog.Logger) error {
 
 		fprint := fingerprint.For(cert)
 
-		sk, err := fingerprint.SigningKey(fprint, secretKey)
+		logger.Info("loaded new root fingerprint", "hex", fprint.Hex())
+
+		sk, err := fprint.DeriveECDSASigningKey(secretKey)
 		if err != nil {
 			return err
 		}
@@ -100,6 +103,16 @@ func run(ctx context.Context, logger *slog.Logger) error {
 
 	tokenServer, err := tokenserver.Create(ctx, tokenServerCfg)
 
+	wellKnownServerCfg := &wellknownserver.Config{
+		Address: "0.0.0.0:9119",
+
+		Certificate: cert,
+
+		RootMap: rootMap,
+	}
+
+	wellKnownServer, err := wellknownserver.Create(ctx, wellKnownServerCfg)
+
 	go func() {
 		err := tokenServer.ListenAndServeTLS("", "")
 
@@ -108,11 +121,16 @@ func run(ctx context.Context, logger *slog.Logger) error {
 		}
 	}()
 
-	// TODO: wellknown
+	go func() {
+		err := wellKnownServer.ListenAndServeTLS("", "")
+
+		if err != http.ErrServerClosed {
+			logger.Error("well-known server error", "err", err)
+		}
+	}()
 
 	logger.Info("token server listening", "addr", tokenServerCfg.Address)
-
-	//fmt.Printf("Server listening on %s/.well-known\n", addr)
+	logger.Info("well-known server listening", "addr", wellKnownServerCfg.Address)
 
 	<-ctx.Done()
 
@@ -123,6 +141,10 @@ func run(ctx context.Context, logger *slog.Logger) error {
 
 	if err := tokenServer.Shutdown(shutdownCtx); err != nil {
 		return fmt.Errorf("failed to shut down token server: %s", err)
+	}
+
+	if err := wellKnownServer.Shutdown(shutdownCtx); err != nil {
+		return fmt.Errorf("failed to shut down well-known server: %s", err)
 	}
 
 	return nil

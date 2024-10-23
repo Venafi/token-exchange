@@ -1,0 +1,23 @@
+# This generates a long-lived client certificate useful for testing
+
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: client-cert
+  namespace: default
+spec:
+  isCA: false
+  secretName: client-cert
+  subject:
+    organizations:
+    - cert-manager
+  uris:
+  - spiffe://example.com/client-cert
+  duration: 43800h  # 5 years
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  issuerRef:
+    name: workload-issuer
+    kind: ClusterIssuer
+    group: cert-manager.io

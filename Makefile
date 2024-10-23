@@ -12,6 +12,8 @@ kind_cluster ?= token-exchange
 
 bindir := _bin
 
+host := $(shell go env GOARCH)
+
 # cmd/token-exchange/main.go must go first
 deps := cmd/token-exchange/main.go go.mod go.sum $(wildcard srvtool/*.go) $(wildcard tokenserver/*.go) $(wildcard wellknownserver/*.go)
 
@@ -42,7 +44,7 @@ container-linux-arm64: Containerfile $(bindir)/release/token-exchange-linux-arm6
 	$(ctr) build -t cert-manager.local/token-exchange -f Containerfile --build-arg TARGETARCH=arm64 ./$(bindir)/release
 
 .PHONY: kind-load
-kind-load:
+kind-load: container-linux-$(host)
 	kind load docker-image --name $(kind_cluster) cert-manager.local/token-exchange:latest
 
 .PHONY: kind-load-deps
@@ -82,6 +84,13 @@ kind-setup:
 		--set "app.issuer.kind=" \
 		--set "app.issuer.group=" \
 		--set "app.runtimeIssuanceConfigMap=spiffe-issuer"
+
+.PHONY: get-token
+get-token:
+	curl -v --cacert infrastructure/root.pem --cert infrastructure/client.crt --key infrastructure/client.key \
+		-XPOST \
+		-d "grant_type=urn:ietf:params:oauth:grant-type:token-exchange&subject_token_type=urn:ietf:params:oauth:token-type:tls-client-auth&&aud=abc123" \
+		https://localhost:9966/token
 
 $(bindir)/release:
 	mkdir -p $@
