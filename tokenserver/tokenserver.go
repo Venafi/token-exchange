@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"log/slog"
 	"net"
 	"net/http"
 	"time"
@@ -42,6 +43,8 @@ func Create(ctx context.Context, config *Config) (*http.Server, error) {
 		IdleTimeout:    120 * time.Second,
 		MaxHeaderBytes: 10 * 1024,
 
+		ErrorLog: slog.NewLogLogger(logr.FromContextAsSlogLogger(ctx).Handler(), slog.LevelError),
+
 		TLSConfig: tlsCfg,
 
 		Handler: newServer(config.RootMap),
@@ -79,7 +82,7 @@ type tokenServer struct {
 }
 
 func (ts *tokenServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	ts.mux.ServeHTTP(w, r)
+	srvtool.ServeHTTPWithLogs(ts.mux, w, r)
 }
 
 type statusMsg struct {

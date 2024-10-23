@@ -3,6 +3,7 @@ package wellknownserver
 import (
 	"context"
 	"crypto/tls"
+	"log/slog"
 	"net"
 	"net/http"
 	"strings"
@@ -11,6 +12,7 @@ import (
 	"token-exchange/srvtool"
 
 	jose "github.com/go-jose/go-jose/v4"
+	"github.com/go-logr/logr"
 )
 
 type Config struct {
@@ -35,6 +37,8 @@ func Create(ctx context.Context, config *Config) (*http.Server, error) {
 		WriteTimeout:   5 * time.Second,
 		IdleTimeout:    120 * time.Second,
 		MaxHeaderBytes: 10 * 1024,
+
+		ErrorLog: slog.NewLogLogger(logr.FromContextAsSlogLogger(ctx).Handler(), slog.LevelError),
 
 		TLSConfig: tlsCfg,
 
@@ -73,7 +77,7 @@ type wellKnownServer struct {
 }
 
 func (wks *wellKnownServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	wks.mux.ServeHTTP(w, r)
+	srvtool.ServeHTTPWithLogs(wks.mux, w, r)
 }
 
 func (wks *wellKnownServer) extractRootID(r *http.Request) (fingerprint.Fingerprint, srvtool.Response) {

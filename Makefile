@@ -99,11 +99,11 @@ port-forward-token:
 port-forward-wellknown:
 	kubectl port-forward -n token-exchange $(shell kubectl get pods -n token-exchange -l app=token-exchange -ojson | jq -r '.items[0].metadata.name') 9119:9119
 
-curl_flags=-sS
+curl_flags=-sS --cacert infrastructure/root.pem
 
 .PHONY: get-token
 get-token:
-	curl $(curl_flags) --cacert infrastructure/root.pem --cert infrastructure/client.crt --key infrastructure/client.key \
+	curl $(curl_flags) --cert infrastructure/client.crt --key infrastructure/client.key \
 		-XPOST \
 		-d "grant_type=urn:ietf:params:oauth:grant-type:token-exchange&subject_token_type=urn:ietf:params:oauth:token-type:tls-client-auth&&aud=abc123" \
 		https://localhost:9966/token \
@@ -111,13 +111,13 @@ get-token:
 
 .PHONY: get-openid-configuration
 get-openid-configuration:
-	curl $(curl_flags) --cacert infrastructure/root.pem \
+	curl $(curl_flags) \
 		https://localhost:9119/.well-known/78eb04b2a5e9b4a1e6f4bd4d31dcca7937ec1acb12c53f52e433adbfcfbcf178/openid-configuration \
 		| jq
 
 .PHONY: get-jwks
 get-jwks:
-	curl $(curl_flags) --cacert infrastructure/root.pem \
+	curl $(curl_flags) \
 		https://localhost:9119/.well-known/78eb04b2a5e9b4a1e6f4bd4d31dcca7937ec1acb12c53f52e433adbfcfbcf178/jwks \
 		| jq
 
