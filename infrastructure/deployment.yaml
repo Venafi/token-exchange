@@ -12,7 +12,7 @@ metadata:
   namespace: cert-manager
 type: kubernetes.io/tls
 stringData:
-  tls.crt: >-
+  tls.crt: |-
     -----BEGIN CERTIFICATE-----
     MIIBdjCCARygAwIBAgIQP9xx0w99vLMsPW0CGmwIMjAKBggqhkjOPQQDAjAbMRkw
     FwYDVQQDExBteS1zZWxmc2lnbmVkLWNhMB4XDTI0MTAyMjE2MjAzOFoXDTI5MTAy
@@ -23,7 +23,7 @@ stringData:
     iiYV5zAKBggqhkjOPQQDAgNIADBFAiA49VaydB4QwD6EulC1vEiCTsFAoAfW9j5R
     h9ctDHZigQIhAJRzwtr/PgmauQJbAh35CflGvm/IcnrpJTK1e+zLnQt6
     -----END CERTIFICATE-----
-  tls.key: >-
+  tls.key: |-
     -----BEGIN EC PRIVATE KEY-----
     MHcCAQEEIJYmbU/y6qJt5cTvFgojlP6DeuYgM/97ktLWZPDPkL4VoAoGCCqGSM49
     AwEHoUQDQgAEwNmaDQ1JixRjWkvCk+cKA0r/ozD7K5bMCITovMtq8dsW4v06pF46
@@ -38,7 +38,7 @@ metadata:
   name: root-cert-trust
   namespace: cert-manager
 data:
-  root.pem: |
+  root.pem: |-
     -----BEGIN CERTIFICATE-----
     MIIBdjCCARygAwIBAgIQP9xx0w99vLMsPW0CGmwIMjAKBggqhkjOPQQDAjAbMRkw
     FwYDVQQDExBteS1zZWxmc2lnbmVkLWNhMB4XDTI0MTAyMjE2MjAzOFoXDTI5MTAy
