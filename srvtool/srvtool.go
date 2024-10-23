@@ -3,31 +3,77 @@ package srvtool
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
-	"token-exchange/logging"
+
+	"github.com/go-logr/logr"
 )
 
-type EndpointFn func(http.ResponseWriter, *http.Request) (*Response, *HTTPError)
+type EndpointFn func(*http.Request) Response
 
-type Response struct {
-	HTTPCode int
-	Body     any
+type Response interface {
+	HTTPCode() int
+	Body() any
 }
 
-func (resp *Response) WriteJSON(w http.ResponseWriter, r *http.Request) {
-	statusCode := resp.HTTPCode
+type jsonResponse struct {
+	code int
+	body any
+}
 
-	if statusCode == 0 {
-		statusCode = http.StatusOK
+func (r *jsonResponse) HTTPCode() int {
+	return r.code
+}
+
+func (r *jsonResponse) Body() any {
+	return r.body
+}
+
+func Ok(body any) Response {
+	return NewResponse(http.StatusOK, body)
+}
+
+func NewResponse(code int, body any) Response {
+	return &jsonResponse{
+		code: code,
+		body: body,
 	}
+}
 
-	var out []byte
-	var err error
+type errMsg struct {
+	Error string `json:"error"`
+}
 
-	out, err = json.Marshal(resp.Body)
+func Error(code int, message string) Response {
+	return NewResponse(code, errMsg{Error: message})
+}
+
+func Errorf(code int, fmtStr string, args ...any) Response {
+	return Error(code, fmt.Sprintf(fmtStr, args...))
+}
+
+func JSONHandler(fn EndpointFn) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		response := fn(r)
+
+		if response == nil {
+			http.Error(w, "internal server error", http.StatusInternalServerError)
+			return
+		}
+
+		statusCode := response.HTTPCode()
+		body := response.Body()
+
+		writeBody(r.Context(), w, statusCode, body)
+	}
+}
+
+func writeBody(ctx context.Context, w http.ResponseWriter, statusCode int, body any) {
+	out, err := json.Marshal(body)
 	if err != nil {
-		logger := logging.LoggerFromContext(r.Context())
-		logger.Error("failed to marshal response as JSON", "err", err)
+		logr.
+			FromContextAsSlogLogger(ctx).
+			Error("failed to marshal response as JSON", "err", err)
 
 		statusCode = 500
 		out = []byte(`{"error":"internal server error"}`)
@@ -35,26 +81,10 @@ func (resp *Response) WriteJSON(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
-	writeBody(r.Context(), w, out)
-}
 
-func JSON(fn EndpointFn) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		var response *Response
-		var err *HTTPError
-
-		response, err = fn(w, r)
-		if err != nil {
-			response = err.Response()
-		}
-
-		response.WriteJSON(w, r)
-	}
-}
-
-func writeBody(ctx context.Context, w http.ResponseWriter, body []byte) {
-	_, err := w.Write(body)
-	if err != nil {
-		logging.LoggerFromContext(ctx).Error("failed to write http response", "err", err)
+	if _, err := w.Write(out); err != nil {
+		logr.
+			FromContextAsSlogLogger(ctx).
+			Error("failed to write response body", "err", err)
 	}
 }

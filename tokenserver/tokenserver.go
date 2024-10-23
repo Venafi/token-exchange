@@ -8,10 +8,10 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/go-logr/logr"
 	jwtgen "github.com/golang-jwt/jwt/v5"
 
 	"token-exchange/fingerprint"
-	"token-exchange/logging"
 	"token-exchange/srvtool"
 )
 
@@ -64,8 +64,8 @@ func newServer(roots fingerprint.RootMap) *tokenServer {
 		mux: mux,
 	}
 
-	mux.HandleFunc("POST /token", srvtool.JSON(srv.handleTokenRequest))
-	mux.HandleFunc("GET /status", srvtool.JSON(srv.handleStatusRequest))
+	mux.HandleFunc("POST /token", srvtool.JSONHandler(srv.handleTokenRequest))
+	mux.HandleFunc("GET /status", srvtool.JSONHandler(srv.handleStatusRequest))
 
 	return srv
 }
@@ -86,12 +86,10 @@ type statusMsg struct {
 	Status string `json:"status"`
 }
 
-func (ts *tokenServer) handleStatusRequest(w http.ResponseWriter, r *http.Request) (*srvtool.Response, *srvtool.HTTPError) {
-	return &srvtool.Response{
-		Body: statusMsg{
-			Status: "OK",
-		},
-	}, nil
+func (ts *tokenServer) handleStatusRequest(r *http.Request) srvtool.Response {
+	return srvtool.Ok(statusMsg{
+		Status: "OK",
+	})
 }
 
 type tokenResponse struct {
@@ -100,27 +98,27 @@ type tokenResponse struct {
 	ExpiresIn       int    `json:"expires_in"`
 }
 
-func (ts *tokenServer) handleTokenRequest(w http.ResponseWriter, r *http.Request) (*srvtool.Response, *srvtool.HTTPError) {
-	logger := logging.LoggerFromContext(r.Context())
+func (ts *tokenServer) handleTokenRequest(r *http.Request) srvtool.Response {
+	logger := logr.FromContextAsSlogLogger(r.Context())
 
 	if len(r.TLS.VerifiedChains) == 0 {
 		// this means that the token server wasn't configured to require TLS
 		logger.Error("got no verified chains on a call to handleTokenRequest")
-		return nil, srvtool.Error(http.StatusInternalServerError, "invalid configuration on server")
+		return srvtool.Error(http.StatusInternalServerError, "invalid configuration on server")
 	}
 
 	// Decode the form data
 	if err := r.ParseForm(); err != nil {
-		return nil, srvtool.Errorf(http.StatusBadRequest, "failed to parse form input: %s", err)
+		return srvtool.Errorf(http.StatusBadRequest, "failed to parse form input: %s", err)
 	}
 
 	// Check the form data
 	if r.Form.Get("grant_type") != "urn:ietf:params:oauth:grant-type:token-exchange" {
-		return nil, srvtool.Errorf(http.StatusBadRequest, "invalid grant_type in form: %s", r.Form.Get("grant_type"))
+		return srvtool.Errorf(http.StatusBadRequest, "invalid grant_type in form: %s", r.Form.Get("grant_type"))
 	}
 
 	if r.Form.Get("subject_token_type") != "urn:ietf:params:oauth:token-type:tls-client-auth" {
-		return nil, srvtool.Errorf(http.StatusBadRequest, "invalid subject_token_type in form: %s", r.Form.Get("subject_token_type"))
+		return srvtool.Errorf(http.StatusBadRequest, "invalid subject_token_type in form: %s", r.Form.Get("subject_token_type"))
 	}
 
 	clientCertChain := r.TLS.VerifiedChains[0]
@@ -128,13 +126,13 @@ func (ts *tokenServer) handleTokenRequest(w http.ResponseWriter, r *http.Request
 	fprint, err := fingerprint.Rootmost(clientCertChain)
 	if err != nil {
 		logger.Error("failed to get unique root ID from chain", "err", err)
-		return nil, srvtool.Error(http.StatusInternalServerError, "failed to get unique root ID from provided chain")
+		return srvtool.Error(http.StatusInternalServerError, "failed to get unique root ID from provided chain")
 	}
 
 	key, ok := ts.roots[fprint]
 	if !ok {
 		logger.Error("failed to get private key corresponding to root", "err", err, "fingerprint", fprint)
-		return nil, srvtool.Error(http.StatusInternalServerError, "failed to retrieve private key corresponding to received root")
+		return srvtool.Error(http.StatusInternalServerError, "failed to retrieve private key corresponding to received root")
 	}
 
 	// TODO: handle empty aud / subject?
@@ -157,15 +155,14 @@ func (ts *tokenServer) handleTokenRequest(w http.ResponseWriter, r *http.Request
 	jwt, err := token.SignedString(key)
 	if err != nil {
 		logger.Error("failed to sign token", "err", err)
-		return nil, srvtool.Error(http.StatusInternalServerError, "failed to sign token")
+		return srvtool.Error(http.StatusInternalServerError, "failed to sign token")
 	}
 
-	return &srvtool.Response{
-		HTTPCode: http.StatusOK,
-		Body: tokenResponse{
+	return srvtool.Ok(
+		tokenResponse{
 			AccessToken:     jwt,
 			IssuedTokenType: "urn:ietf:params:oauth:token-type:jwt",
 			ExpiresIn:       int(expiresAt.Sub(issuedAt).Seconds()),
 		},
-	}, nil
+	)
 }

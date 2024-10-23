@@ -45,7 +45,7 @@ func newServer(greeting string) *server {
 		mux: mux,
 	}
 
-	mux.HandleFunc("GET /test/{name}", srvtool.JSON(srv.handleTestRequest))
+	mux.HandleFunc("GET /test/{name}", srvtool.JSONHandler(srv.handleTestRequest))
 
 	return srv
 }
@@ -59,23 +59,18 @@ type respMsg struct {
 	Greeting string `json:"greeting"`
 }
 
-func (s *server) handleTestRequest(w http.ResponseWriter, r *http.Request) (*srvtool.Response, *srvtool.HTTPError) {
+func (s *server) handleTestRequest(r *http.Request) srvtool.Response {
 	name := r.PathValue("name")
 
 	switch strings.ToLower(name) {
 	case "error":
-		return nil, &srvtool.HTTPError{
-			HTTPCode: 400,
-			Message:  "bad idea to call yourself 'error'",
-		}
+		return srvtool.Error(400, "bad idea to call yourself 'error'")
 
 	default:
-		return &srvtool.Response{
-			Body: respMsg{
-				Name:     name,
-				Greeting: "greeting",
-			},
-		}, nil
+		return srvtool.Ok(respMsg{
+			Name:     name,
+			Greeting: "greeting",
+		})
 	}
 
 }

@@ -14,8 +14,9 @@ import (
 	"time"
 
 	"token-exchange/fingerprint"
-	"token-exchange/logging"
 	"token-exchange/tokenserver"
+
+	"github.com/go-logr/logr"
 )
 
 const (
@@ -130,7 +131,7 @@ func run(ctx context.Context, logger *slog.Logger) error {
 func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 
-	ctx := logging.ContextWithLogger(context.Background(), logger)
+	ctx := logr.NewContextWithSlogLogger(context.Background(), logger)
 
 	runCtx, stop := signal.NotifyContext(ctx, os.Interrupt, os.Kill)
 	defer stop()
