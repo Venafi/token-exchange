@@ -1,0 +1,47 @@
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: selfsigned-issuer
+spec:
+  selfSigned: {}
+
+---
+
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: token-exchange-root-1
+spec:
+  isCA: true
+  commonName: token-exchange-root-1
+  secretName: root-secret-1
+  duration: 43800h # 365 days * 5
+  uris: ["spiffe://tim-ramlot-gcp.jetstacker.net"]
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  issuerRef:
+    name: selfsigned-issuer
+    kind: ClusterIssuer
+    group: cert-manager.io
+
+---
+
+
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: token-exchange-root-2
+spec:
+  isCA: true
+  commonName: token-exchange-root-2
+  secretName: root-secret-2
+  duration: 43800h # 365 days * 5
+  uris: ["spiffe://tim-ramlot-gcp.jetstacker.net"]
+  privateKey:
+    algorithm: RSA
+    size: 2048
+  issuerRef:
+    name: selfsigned-issuer
+    kind: ClusterIssuer
+    group: cert-manager.io

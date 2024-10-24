@@ -51,6 +51,10 @@ CERT_MANAGER_VERSION=v1.16.1
 TRUST_MANAGER_VERSION=v0.12.0
 CSI_DRIVER_SPIFFE_VERSION=v0.8.1
 
+.PHONY: cluster
+cluster:
+	./cluster.sh
+
 .PHONY: kind-load-deps
 kind-load-deps:
 	docker pull quay.io/jetstack/cert-manager-controller:$(CERT_MANAGER_VERSION)
@@ -103,7 +107,7 @@ curl_flags=-sS --cacert infrastructure/root.pem
 
 .PHONY: get-token
 get-token:
-	curl $(curl_flags) --cert infrastructure/client.crt --key infrastructure/client.key \
+	curl $(curl_flags) --cert _bin/client.crt --key _bin/client.key \
 		-XPOST \
 		-d "grant_type=urn:ietf:params:oauth:grant-type:token-exchange&subject_token_type=urn:ietf:params:oauth:token-type:tls-client-auth&&aud=abc123" \
 		https://localhost:9966/token \
