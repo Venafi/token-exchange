@@ -1,7 +1,15 @@
-apiVersion: cert-manager.io/v1
-kind: ClusterIssuer
+apiVersion: v1
+kind: Namespace
 metadata:
-  name: selfsigned-issuer
+  name: spiffe-roots-gen
+
+---
+
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: rootsgen-selfsigned-issuer
+  namespace: spiffe-roots-gen
 spec:
   selfSigned: {}
 
@@ -11,6 +19,7 @@ apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
   name: token-exchange-root-1
+  namespace: spiffe-roots-gen
 spec:
   isCA: true
   commonName: token-exchange-root-1
@@ -21,8 +30,8 @@ spec:
     algorithm: ECDSA
     size: 256
   issuerRef:
-    name: selfsigned-issuer
-    kind: ClusterIssuer
+    name: rootsgen-selfsigned-issuer
+    kind: Issuer
     group: cert-manager.io
 
 ---
@@ -32,6 +41,7 @@ apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
   name: token-exchange-root-2
+  namespace: spiffe-roots-gen
 spec:
   isCA: true
   commonName: token-exchange-root-2
@@ -42,6 +52,6 @@ spec:
     algorithm: RSA
     size: 2048
   issuerRef:
-    name: selfsigned-issuer
-    kind: ClusterIssuer
+    name: rootsgen-selfsigned-issuer
+    kind: Issuer
     group: cert-manager.io
