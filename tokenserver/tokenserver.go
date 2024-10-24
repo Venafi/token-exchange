@@ -73,33 +73,27 @@ func Create(ctx context.Context, config *Config) (*http.Server, error) {
 	return tokenSrv, nil
 }
 
-func newServer(roots fingerprint.RootMap, discoverEndpoint string) *tokenServer {
+func newServer(roots fingerprint.RootMap, discoverEndpoint string) http.Handler {
 	mux := http.NewServeMux()
 
 	srv := &tokenServer{
 		roots: roots,
 
 		issuerURL: "https://" + discoverEndpoint,
-
-		mux: mux,
 	}
 
 	mux.HandleFunc("POST /token", srvtool.JSONHandler(srv.handleTokenRequest))
 	mux.HandleFunc("GET /status", srvtool.JSONHandler(srv.handleStatusRequest))
 
-	return srv
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		srvtool.ServeHTTPWithLogs(mux, w, r)
+	})
 }
 
 type tokenServer struct {
 	roots fingerprint.RootMap
 
 	issuerURL string
-
-	mux *http.ServeMux
-}
-
-func (ts *tokenServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	srvtool.ServeHTTPWithLogs(ts.mux, w, r)
 }
 
 type statusMsg struct {
