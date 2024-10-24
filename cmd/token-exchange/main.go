@@ -44,7 +44,6 @@ var secretKey = []byte{
 }
 
 func run(ctx context.Context, logger *slog.Logger) error {
-	var tokenEndpoint string
 	var discoverEndpoint string
 
 	var tlsChainLocation string
@@ -52,7 +51,6 @@ func run(ctx context.Context, logger *slog.Logger) error {
 
 	var trustBundleLocation string
 
-	flag.StringVar(&tokenEndpoint, "token-endpoint", "token.example.com", "DNS name at which the token server is available")
 	flag.StringVar(&discoverEndpoint, "discover-endpoint", "discover.example.com", "DNS name at which the well-known / discovery server is available")
 
 	flag.StringVar(&tlsChainLocation, "tls-chain-location", "", "Required: filesystem location of TLS cert")
