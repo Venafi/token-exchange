@@ -63,6 +63,7 @@ kind-load-deps:
 	docker pull quay.io/jetstack/cert-manager-cainjector:$(CERT_MANAGER_VERSION)
 	docker pull quay.io/jetstack/cert-manager-startupapicheck:$(CERT_MANAGER_VERSION)
 	docker pull quay.io/jetstack/trust-manager:$(TRUST_MANAGER_VERSION)
+	docker pull quay.io/jetstack/cert-manager-package-debian:20210119.0
 	docker pull quay.io/jetstack/cert-manager-csi-driver-spiffe:$(CSI_DRIVER_SPIFFE_VERSION)
 	docker pull quay.io/jetstack/cert-manager-csi-driver-spiffe-approver:$(CSI_DRIVER_SPIFFE_VERSION)
 	kind load docker-image --name $(kind_cluster) quay.io/jetstack/cert-manager-controller:$(CERT_MANAGER_VERSION)
@@ -71,6 +72,7 @@ kind-load-deps:
 	kind load docker-image --name $(kind_cluster) quay.io/jetstack/cert-manager-cainjector:$(CERT_MANAGER_VERSION)
 	kind load docker-image --name $(kind_cluster) quay.io/jetstack/cert-manager-startupapicheck:$(CERT_MANAGER_VERSION)
 	kind load docker-image --name $(kind_cluster) quay.io/jetstack/trust-manager:$(TRUST_MANAGER_VERSION)
+	docker pull quay.io/jetstack/cert-manager-package-debian:20210119.0
 	kind load docker-image --name $(kind_cluster) quay.io/jetstack/cert-manager-csi-driver-spiffe:$(CSI_DRIVER_SPIFFE_VERSION)
 	kind load docker-image --name $(kind_cluster) quay.io/jetstack/cert-manager-csi-driver-spiffe-approver:$(CSI_DRIVER_SPIFFE_VERSION)
 
@@ -84,6 +86,7 @@ kind-setup:
 	helm install trust-manager jetstack/trust-manager \
 		--version $(TRUST_MANAGER_VERSION) \
 		--namespace cert-manager \
+		--set "defaultPackageImage.tag=20210119.0" \
 		--wait
 	helm install cert-manager-csi-driver-spiffe jetstack/cert-manager-csi-driver-spiffe --wait \
 		--namespace cert-manager \
