@@ -118,6 +118,9 @@ func run(ctx context.Context, logger *slog.Logger) error {
 	}
 
 	tokenServer, err := tokenserver.Create(ctx, tokenServerCfg)
+	if err != nil {
+		return fmt.Errorf("failed to create token server: %s", err)
+	}
 
 	wellKnownServerCfg := &wellknownserver.Config{
 		Address: "0.0.0.0:9119",
@@ -130,6 +133,9 @@ func run(ctx context.Context, logger *slog.Logger) error {
 	}
 
 	wellKnownServer, err := wellknownserver.Create(ctx, wellKnownServerCfg)
+	if err != nil {
+		return fmt.Errorf("failed to create well-known server: %s", err)
+	}
 
 	go func() {
 		err := tokenServer.ListenAndServeTLS("", "")
