@@ -12,8 +12,8 @@ import (
 	"github.com/go-logr/logr"
 	jwtgen "github.com/golang-jwt/jwt/v5"
 
-	"token-exchange/fingerprint"
-	"token-exchange/srvtool"
+	"github.com/Venafi/token-exchange/fingerprint"
+	"github.com/Venafi/token-exchange/srvtool"
 )
 
 type Config struct {

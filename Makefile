@@ -121,18 +121,5 @@ get-jwks:
 		https://localhost:9119/.well-known/78eb04b2a5e9b4a1e6f4bd4d31dcca7937ec1acb12c53f52e433adbfcfbcf178/jwks \
 		| jq
 
-$(bindir)/release:
+$(bindir) $(bindir)/release:
 	mkdir -p $@
-
-$(bindir):
-	mkdir -p $@
-
-
-
-
-
-.PHONY: build-testserver
-build-testserver: $(bindir)/testserver
-
-$(bindir)/testserver: $(wildcard cmd/testserver/*.go) $(deps) $(wildcard testserver/*.go) | $(bindir)
-	CGO_ENABLED=0 go build -o $@ cmd/testserver/main.go

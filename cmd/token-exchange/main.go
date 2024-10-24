@@ -15,9 +15,9 @@ import (
 
 	"github.com/go-logr/logr"
 
-	"token-exchange/fingerprint"
-	"token-exchange/tokenserver"
-	"token-exchange/wellknownserver"
+	"github.com/Venafi/token-exchange/fingerprint"
+	"github.com/Venafi/token-exchange/tokenserver"
+	"github.com/Venafi/token-exchange/wellknownserver"
 )
 
 var secretKey = []byte{

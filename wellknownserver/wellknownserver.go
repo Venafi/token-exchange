@@ -8,11 +8,12 @@ import (
 	"net/http"
 	"strings"
 	"time"
-	"token-exchange/fingerprint"
-	"token-exchange/srvtool"
 
 	jose "github.com/go-jose/go-jose/v4"
 	"github.com/go-logr/logr"
+
+	"github.com/Venafi/token-exchange/fingerprint"
+	"github.com/Venafi/token-exchange/srvtool"
 )
 
 type Config struct {
