@@ -51,6 +51,10 @@ CERT_MANAGER_VERSION=v1.16.1
 TRUST_MANAGER_VERSION=v0.12.0
 CSI_DRIVER_SPIFFE_VERSION=v0.8.1
 
+.PHONY: cluster
+cluster:
+	./cluster.sh
+
 .PHONY: kind-load-deps
 kind-load-deps:
 	docker pull quay.io/jetstack/cert-manager-controller:$(CERT_MANAGER_VERSION)
@@ -59,6 +63,7 @@ kind-load-deps:
 	docker pull quay.io/jetstack/cert-manager-cainjector:$(CERT_MANAGER_VERSION)
 	docker pull quay.io/jetstack/cert-manager-startupapicheck:$(CERT_MANAGER_VERSION)
 	docker pull quay.io/jetstack/trust-manager:$(TRUST_MANAGER_VERSION)
+	docker pull quay.io/jetstack/cert-manager-package-debian:20210119.0
 	docker pull quay.io/jetstack/cert-manager-csi-driver-spiffe:$(CSI_DRIVER_SPIFFE_VERSION)
 	docker pull quay.io/jetstack/cert-manager-csi-driver-spiffe-approver:$(CSI_DRIVER_SPIFFE_VERSION)
 	kind load docker-image --name $(kind_cluster) quay.io/jetstack/cert-manager-controller:$(CERT_MANAGER_VERSION)
@@ -67,6 +72,7 @@ kind-load-deps:
 	kind load docker-image --name $(kind_cluster) quay.io/jetstack/cert-manager-cainjector:$(CERT_MANAGER_VERSION)
 	kind load docker-image --name $(kind_cluster) quay.io/jetstack/cert-manager-startupapicheck:$(CERT_MANAGER_VERSION)
 	kind load docker-image --name $(kind_cluster) quay.io/jetstack/trust-manager:$(TRUST_MANAGER_VERSION)
+	docker pull quay.io/jetstack/cert-manager-package-debian:20210119.0
 	kind load docker-image --name $(kind_cluster) quay.io/jetstack/cert-manager-csi-driver-spiffe:$(CSI_DRIVER_SPIFFE_VERSION)
 	kind load docker-image --name $(kind_cluster) quay.io/jetstack/cert-manager-csi-driver-spiffe-approver:$(CSI_DRIVER_SPIFFE_VERSION)
 
@@ -80,6 +86,7 @@ kind-setup:
 	helm install trust-manager jetstack/trust-manager \
 		--version $(TRUST_MANAGER_VERSION) \
 		--namespace cert-manager \
+		--set "defaultPackageImage.tag=20210119.0" \
 		--wait
 	helm install cert-manager-csi-driver-spiffe jetstack/cert-manager-csi-driver-spiffe --wait \
 		--namespace cert-manager \
@@ -103,7 +110,7 @@ curl_flags=-sS --cacert infrastructure/root.pem
 
 .PHONY: get-token
 get-token:
-	curl $(curl_flags) --cert infrastructure/client.crt --key infrastructure/client.key \
+	curl $(curl_flags) --cert _bin/client.crt --key _bin/client.key \
 		-XPOST \
 		-d "grant_type=urn:ietf:params:oauth:grant-type:token-exchange&subject_token_type=urn:ietf:params:oauth:token-type:tls-client-auth&&aud=abc123" \
 		https://localhost:9966/token \

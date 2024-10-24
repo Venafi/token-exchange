@@ -12,8 +12,8 @@ spec:
     organizations:
     - cert-manager
   uris:
-  - spiffe://example.com/client-cert
-  duration: 43800h  # 5 years
+  - spiffe://tim-ramlot-gcp.jetstacker.net/client-cert
+  duration: 8760h  # 1 year
   privateKey:
     algorithm: ECDSA
     size: 256

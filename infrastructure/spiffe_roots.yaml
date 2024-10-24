@@ -1,0 +1,57 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: spiffe-roots-gen
+
+---
+
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: rootsgen-selfsigned-issuer
+  namespace: spiffe-roots-gen
+spec:
+  selfSigned: {}
+
+---
+
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: token-exchange-root-1
+  namespace: spiffe-roots-gen
+spec:
+  isCA: true
+  commonName: token-exchange-root-1
+  secretName: root-secret-1
+  duration: 43800h # 365 days * 5
+  uris: ["spiffe://tim-ramlot-gcp.jetstacker.net"]
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  issuerRef:
+    name: rootsgen-selfsigned-issuer
+    kind: Issuer
+    group: cert-manager.io
+
+---
+
+
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: token-exchange-root-2
+  namespace: spiffe-roots-gen
+spec:
+  isCA: true
+  commonName: token-exchange-root-2
+  secretName: root-secret-2
+  duration: 43800h # 365 days * 5
+  uris: ["spiffe://tim-ramlot-gcp.jetstacker.net"]
+  privateKey:
+    algorithm: RSA
+    size: 2048
+  issuerRef:
+    name: rootsgen-selfsigned-issuer
+    kind: Issuer
+    group: cert-manager.io
