@@ -67,15 +67,13 @@ func Create(ctx context.Context, config *Config) (*http.Server, error) {
 	return wellKnownSrv, nil
 }
 
-func newServer(roots fingerprint.RootMap, discoverEndpoint string) *wellKnownServer {
+func newServer(roots fingerprint.RootMap, discoverEndpoint string) http.Handler {
 	mux := http.NewServeMux()
 
 	srv := &wellKnownServer{
 		roots: roots,
 
 		issuerURL: "https://" + discoverEndpoint,
-
-		mux: mux,
 	}
 
 	mux.HandleFunc("GET /.well-known/{rootIDHex}/openid-configuration", srvtool.JSONHandler(srv.handleOpenIDConfiguration))
@@ -83,19 +81,15 @@ func newServer(roots fingerprint.RootMap, discoverEndpoint string) *wellKnownSer
 
 	mux.HandleFunc("GET /status", srvtool.JSONHandler(srv.handleStatusRequest))
 
-	return srv
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		srvtool.ServeHTTPWithLogs(mux, w, r)
+	})
 }
 
 type wellKnownServer struct {
 	roots fingerprint.RootMap
 
 	issuerURL string
-
-	mux *http.ServeMux
-}
-
-func (wks *wellKnownServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	srvtool.ServeHTTPWithLogs(wks.mux, w, r)
 }
 
 func (wks *wellKnownServer) extractRootID(r *http.Request) (fingerprint.Fingerprint, srvtool.Response) {
