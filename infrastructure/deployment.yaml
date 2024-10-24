@@ -1,0 +1,161 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: token-exchange
+
+---
+
+apiVersion: v1
+kind: Secret
+metadata:
+  name: root-secret
+  namespace: cert-manager
+type: kubernetes.io/tls
+stringData:
+  tls.crt: |-
+    -----BEGIN CERTIFICATE-----
+    ...
+    -----END CERTIFICATE-----
+  tls.key: |-
+    -----BEGIN EC PRIVATE KEY-----
+    ...
+    -----END EC PRIVATE KEY-----
+
+---
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: root-cert-trust
+  namespace: cert-manager
+data:
+  root.pem: |-
+    -----BEGIN CERTIFICATE-----
+    ...
+    -----END CERTIFICATE-----
+
+---
+
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: workload-issuer
+spec:
+  ca:
+    secretName: root-secret
+
+---
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: token-exchange
+  namespace: token-exchange
+
+---
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: spiffe-issuer
+  namespace: cert-manager
+data:
+  issuer-name: workload-issuer
+  issuer-kind: ClusterIssuer
+  issuer-group: cert-manager.io
+
+---
+
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: token-exchange-certificate
+  namespace: token-exchange
+spec:
+  isCA: false
+  secretName: token-exchange-cert-secret
+  subject:
+    organizations:
+    - cert-manager
+  dnsNames:
+  - "token-exchange.token-exchange.svc.cluster.local"
+  - "token-exchange.token-exchange"
+  - "localhost"
+  duration: 87600h  # 10 years
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  issuerRef:
+    name: workload-issuer
+    kind: ClusterIssuer
+    group: cert-manager.io
+
+---
+
+apiVersion: trust.cert-manager.io/v1alpha1
+kind: Bundle
+metadata:
+  name: spiffe-workload-trust-bundle
+spec:
+  sources:
+    - configMap:
+        name: root-cert-trust
+        key: root.pem
+  target:
+    configMap:
+      key: "bundle.pem"
+
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: token-exchange
+  namespace: token-exchange
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: token-exchange
+  template:
+    metadata:
+      labels:
+        app: token-exchange
+    spec:
+      serviceAccountName: token-exchange
+      containers:
+      - name: token-exchange
+        image: cert-manager.local/token-exchange:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 18749
+        args:
+          - "-tls-chain-location"
+          - "/server-cert/tls.crt"
+          - "-tls-private-key-location"
+          - "/server-cert/tls.key"
+          - "-trust-bundle-location"
+          - "/spiffe-bundle/bundle.pem"
+        volumeMounts:
+        - mountPath: "/server-cert"
+          readOnly: true
+          name: token-exchange-cert-secret
+        - mountPath: "/spiffe-bundle"
+          readOnly: true
+          name: spiffe-workload-trust-bundle
+      volumes:
+        - name: token-exchange-cert-secret
+          secret:
+            secretName: token-exchange-cert-secret
+        - name: tls
+          csi:
+            driver: spiffe.csi.cert-manager.io
+        - name: spiffe-dir
+          emptyDir:
+            sizeLimit: 25Mi
+        - name: spiffe-workload-trust-bundle
+          configMap:
+            name: spiffe-workload-trust-bundle
+            items:
+            - key: bundle.pem
+              path: bundle.pem
