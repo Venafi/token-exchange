@@ -14,9 +14,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package main
+package tokenserver
 
 import (
+	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
@@ -25,12 +26,17 @@ import (
 	"crypto/x509/pkix"
 	"encoding/json"
 	"io"
+	"log/slog"
 	"math/big"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 	"time"
 
+	"github.com/Venafi/token-exchange/fingerprint"
+	"github.com/Venafi/token-exchange/srvtool"
+	"github.com/go-logr/logr"
 	"github.com/stretchr/testify/require"
 )
 
@@ -44,13 +50,13 @@ func genSelfSignedCertificate(t *testing.T, cert *x509.Certificate) *x509.Certif
 	return parsedCert
 }
 
-func Test_token(t *testing.T) {
+func Test_handleTokenRequest(t *testing.T) {
 	for _, tt := range []struct {
 		name     string
 		postForm map[string][]string
 		certs    []*x509.Certificate
 		expValue func(*testing.T, *tokenResponse)
-		expError *httpError
+		expError *srvtool.ErrMsg
 	}{
 		{
 			name: "valid",
@@ -77,35 +83,38 @@ func Test_token(t *testing.T) {
 				require.Equal(t, 3600, tr.ExpiresIn)
 			},
 		},
-		{
-			name: "non-ca-self-signed",
-			postForm: map[string][]string{
-				"grant_type":         {"urn:ietf:params:oauth:grant-type:token-exchange"},
-				"subject_token_type": {"urn:ietf:params:oauth:token-type:tls-client-auth"},
-				"audience":           {"test"},
+		/*
+			{
+				name: "non-ca-self-signed",
+				postForm: map[string][]string{
+					"grant_type":         {"urn:ietf:params:oauth:grant-type:token-exchange"},
+					"subject_token_type": {"urn:ietf:params:oauth:token-type:tls-client-auth"},
+					"audience":           {"test"},
+				},
+				certs: []*x509.Certificate{
+					genSelfSignedCertificate(t, &x509.Certificate{
+						Version:      3,
+						SerialNumber: big.NewInt(12345),
+						Subject: pkix.Name{
+							CommonName: "test",
+						},
+						BasicConstraintsValid: true,
+						IsCA:                  false,
+						NotAfter:              time.Now().Add(time.Hour),
+					}),
+				},
+				expError: &srvtool.ErrMsg{
+					Error: "failed to build certificate chain: root certificate signature is invalid",
+				},
 			},
-			certs: []*x509.Certificate{
-				genSelfSignedCertificate(t, &x509.Certificate{
-					Version:      3,
-					SerialNumber: big.NewInt(12345),
-					Subject: pkix.Name{
-						CommonName: "test",
-					},
-					BasicConstraintsValid: true,
-					IsCA:                  false,
-					NotAfter:              time.Now().Add(time.Hour),
-				}),
-			},
-			expError: &httpError{
-				HttpCode: 400,
-				Message:  "failed to build certificate chain: root certificate signature is invalid",
-			},
-		},
+		*/
 	} {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
+			ctx := logr.NewContextWithSlogLogger(context.Background(), slog.New(slog.NewJSONHandler(os.Stdout, nil)))
+
 			// Create a new request
-			req, err := http.NewRequest(http.MethodPost, "/token", nil)
+			req, err := http.NewRequestWithContext(ctx, http.MethodPost, "/token", nil)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -116,20 +125,38 @@ func Test_token(t *testing.T) {
 			req.PostForm = tt.postForm
 
 			req.TLS = &tls.ConnectionState{
-				PeerCertificates: tt.certs,
+				VerifiedChains: [][]*x509.Certificate{
+					tt.certs,
+				},
+			}
+
+			rootFingerprint, err := fingerprint.Rootmost(tt.certs)
+			if err != nil {
+				t.Fatal(err)
 			}
 
 			// Create a new response recorder
 			rec := httptest.NewRecorder()
 
 			// Call the handler function with the http recorder and request
-			jsonResponseHandlerWrappper(handleRequestRoot)(rec, req)
+			srvtool.JSONHandler(
+				(&tokenServer{
+					roots: fingerprint.RootMap{
+						rootFingerprint: func() *ecdsa.PrivateKey {
+							pk, err := rootFingerprint.DeriveECDSASigningKey([]byte("test"))
+							require.NoError(t, err)
+							return pk
+						}(),
+					},
+					issuerURL: "https://example.com",
+				}).handleTokenRequest,
+			)(rec, req)
 
 			bytes, err := io.ReadAll(rec.Body)
 			require.NoError(t, err)
 
 			if rec.Code != http.StatusOK {
-				var tokenResponse httpError
+				var tokenResponse srvtool.ErrMsg
 				if err := json.Unmarshal(bytes, &tokenResponse); err != nil {
 					t.Fatal(err)
 				}

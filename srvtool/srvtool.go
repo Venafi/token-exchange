@@ -56,12 +56,12 @@ func NewResponse(code int, body any) Response {
 	}
 }
 
-type errMsg struct {
+type ErrMsg struct {
 	Error string `json:"error"`
 }
 
 func Error(code int, message string) Response {
-	return NewResponse(code, errMsg{Error: message})
+	return NewResponse(code, ErrMsg{Error: message})
 }
 
 func Errorf(code int, fmtStr string, args ...any) Response {
