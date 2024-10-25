@@ -21,6 +21,7 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
+	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
@@ -142,8 +143,8 @@ func Test_handleTokenRequest(t *testing.T) {
 			srvtool.JSONHandler(
 				(&tokenServer{
 					roots: fingerprint.RootMap{
-						rootFingerprint: func() *ecdsa.PrivateKey {
-							pk, err := rootFingerprint.DeriveECDSASigningKey([]byte("test"))
+						rootFingerprint: func() *rsa.PrivateKey {
+							pk, err := rootFingerprint.DeriveRSASigningKey([]byte("test"))
 							require.NoError(t, err)
 							return pk
 						}(),

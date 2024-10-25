@@ -97,7 +97,7 @@ func run(ctx context.Context, logger *slog.Logger) error {
 
 		logger.Info("loaded new root fingerprint", "hex", fprint.Hex())
 
-		sk, err := fprint.DeriveECDSASigningKey(secretKey)
+		sk, err := fprint.DeriveRSASigningKey(secretKey)
 		if err != nil {
 			return err
 		}

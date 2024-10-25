@@ -163,7 +163,7 @@ func (ts *tokenServer) handleTokenRequest(r *http.Request) srvtool.Response {
 		ExpiresAt: jwtgen.NewNumericDate(expiresAt),
 	}
 
-	token := jwtgen.NewWithClaims(jwtgen.SigningMethodES256, claims)
+	token := jwtgen.NewWithClaims(jwtgen.SigningMethodRS256, claims)
 	token.Header["kid"] = fprint.Hex()
 
 	jwt, err := token.SignedString(key)

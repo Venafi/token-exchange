@@ -159,7 +159,7 @@ func (wks *wellKnownServer) handleJWKs(r *http.Request) srvtool.Response {
 	response := jose.JSONWebKeySet{
 		Keys: []jose.JSONWebKey{
 			{
-				Algorithm: string(jose.ES256), // TODO: should vary on key type?
+				Algorithm: string(jose.RS256), // TODO: should vary on key type?
 				Key:       publicKey,
 				KeyID:     fprint.Hex(),
 				Use:       "sig",
