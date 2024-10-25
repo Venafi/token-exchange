@@ -19,10 +19,12 @@ package fingerprint
 import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
+	"crypto/rsa"
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/hex"
 	"fmt"
+	rand2 "math/rand/v2"
 
 	"filippo.io/keygen"
 )
@@ -48,6 +50,26 @@ func (f Fingerprint) Hex() string {
 
 func (f Fingerprint) String() string {
 	return f.Hex()
+}
+
+func (f Fingerprint) DeriveRSASigningKey(secretKey []byte) (*rsa.PrivateKey, error) {
+	h := sha256.New()
+
+	// hash.Hash is documented to never return an error
+	_, _ = h.Write(f[:])
+	_, _ = h.Write(secretKey)
+
+	var seed [32]byte
+	copy(seed[:], h.Sum(nil))
+
+	rand := rand2.NewChaCha8(seed)
+
+	pk, err := GenerateKey(rand, 2048)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate private key: %w", err)
+	}
+
+	return pk, nil
 }
 
 func (f Fingerprint) DeriveECDSASigningKey(secretKey []byte) (*ecdsa.PrivateKey, error) {
@@ -79,4 +101,4 @@ func Rootmost(certs []*x509.Certificate) (Fingerprint, error) {
 	return For(rootCertificate), nil
 }
 
-type RootMap map[Fingerprint]*ecdsa.PrivateKey
+type RootMap map[Fingerprint]*rsa.PrivateKey
