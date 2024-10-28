@@ -17,9 +17,11 @@ limitations under the License.
 package main
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/base64"
 	"encoding/pem"
 	"flag"
 	"fmt"
@@ -36,15 +38,10 @@ import (
 	"github.com/Venafi/token-exchange/wellknownserver"
 )
 
-var secretKey = []byte{
-	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-}
-
 func run(ctx context.Context, logger *slog.Logger) error {
 	var discoverEndpoint string
+
+	var secretKeyLocation string
 
 	var tlsChainLocation string
 	var tlsPrivateKeyLocation string
@@ -53,12 +50,18 @@ func run(ctx context.Context, logger *slog.Logger) error {
 
 	flag.StringVar(&discoverEndpoint, "discover-endpoint", "discover.example.com", "DNS name at which the well-known / discovery server is available")
 
+	flag.StringVar(&secretKeyLocation, "secret-key-location", "", "Required: filesystem location of secret key (32 bytes, base64 encoded)")
+
 	flag.StringVar(&tlsChainLocation, "tls-chain-location", "", "Required: filesystem location of TLS cert")
 	flag.StringVar(&tlsPrivateKeyLocation, "tls-private-key-location", "", "Required: filesystem location of TLS private key")
 
 	flag.StringVar(&trustBundleLocation, "trust-bundle-location", "", "Required: filesystem location of TLS trust bundle for client certs")
 
 	flag.Parse()
+
+	if secretKeyLocation == "" {
+		return fmt.Errorf("missing required flag: secret-key-location")
+	}
 
 	if tlsChainLocation == "" {
 		return fmt.Errorf("missing required flag: tls-chain-location")
@@ -70,6 +73,20 @@ func run(ctx context.Context, logger *slog.Logger) error {
 
 	if trustBundleLocation == "" {
 		return fmt.Errorf("missing required flag: trust-bundle-location")
+	}
+
+	base64SecretKey, err := os.ReadFile(secretKeyLocation)
+	if err != nil {
+		return fmt.Errorf("failed to read secret key from %q: %s", secretKeyLocation, err)
+	}
+
+	if decodedLen := base64.StdEncoding.DecodedLen(len(bytes.TrimRight(base64SecretKey, "="))); decodedLen != 32 {
+		return fmt.Errorf("secret key must be 32 bytes, but got %d", decodedLen)
+	}
+
+	var secretKey [32]byte
+	if n, err := base64.StdEncoding.Decode(secretKey[:], base64SecretKey); err != nil || n != 32 {
+		return fmt.Errorf("failed to decode secret key from %q: %s", secretKeyLocation, err)
 	}
 
 	cert, err := tls.LoadX509KeyPair(tlsChainLocation, tlsPrivateKeyLocation)

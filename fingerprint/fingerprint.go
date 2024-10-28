@@ -57,11 +57,11 @@ func (f Fingerprint) String() string {
 
 // seed generates a key-derivation-function seed from the fingerprint and given secret key.
 // Generated seeds _must_ be kept private.
-func (f Fingerprint) seed(secretKey []byte) [32]byte {
-	return sha256.Sum256(append(slices.Clip(f[:]), secretKey...))
+func (f Fingerprint) seed(secretKey [32]byte) [32]byte {
+	return sha256.Sum256(append(slices.Clip(f[:]), secretKey[:]...))
 }
 
-func (f Fingerprint) DeriveRSASigningKey(secretKey []byte) (*rsa.PrivateKey, error) {
+func (f Fingerprint) DeriveRSASigningKey(secretKey [32]byte) (*rsa.PrivateKey, error) {
 	pk, err := rsagen.RSAChaCha(2048, f.seed(secretKey))
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate private key: %w", err)
@@ -70,7 +70,7 @@ func (f Fingerprint) DeriveRSASigningKey(secretKey []byte) (*rsa.PrivateKey, err
 	return pk, nil
 }
 
-func (f Fingerprint) DeriveECDSASigningKey(secretKey []byte) (*ecdsa.PrivateKey, error) {
+func (f Fingerprint) DeriveECDSASigningKey(secretKey [32]byte) (*ecdsa.PrivateKey, error) {
 	s := f.seed(secretKey)
 
 	pk, err := keygen.ECDSA(elliptic.P256(), s[:])
