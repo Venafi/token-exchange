@@ -149,11 +149,31 @@ func (ts *tokenServer) handleTokenRequest(r *http.Request) srvtool.Response {
 		return srvtool.Error(http.StatusInternalServerError, "failed to retrieve private key corresponding to received root")
 	}
 
-	// TODO: handle empty aud / subject?
 	audience := r.Form.Get("audience")
+	if len(audience) == 0 {
+		return srvtool.Error(http.StatusBadRequest, "audience is required")
+	}
+
 	issuedAt := time.Now()
 	expiresAt := issuedAt.Add(1 * time.Hour)
-	subject := clientCertChain[0].Subject.CommonName
+
+	uris := clientCertChain[0].URIs
+	if len(uris) > 1 {
+		return srvtool.Error(http.StatusBadRequest, "multiple URIs found in client certificate")
+	}
+
+	var svidURIs []string
+	for _, uri := range uris {
+		if uri.Scheme == "spiffe" {
+			svidURIs = append(svidURIs, uri.String())
+		}
+	}
+
+	if len(svidURIs) == 0 {
+		return srvtool.Error(http.StatusBadRequest, "no SPIFFE URI found in client certificate")
+	}
+
+	subject := svidURIs[0]
 
 	claims := &jwtgen.RegisteredClaims{
 		Issuer:    ts.issuerURL + "/" + fprint.Hex(),
