@@ -127,9 +127,6 @@ spec:
         - name: tls
           csi:
             driver: spiffe.csi.cert-manager.io
-        - name: spiffe-dir
-          emptyDir:
-            sizeLimit: 25Mi
         - name: spiffe-workload-trust-bundle
           configMap:
             name: spiffe-workload-trust-bundle
