@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package fingerprint
+package rsagen
 
 import (
 	"crypto/rsa"
@@ -28,7 +28,7 @@ import (
 // See https://cs.opensource.google/go/go/+/refs/tags/go1.23.2:src/crypto/rsa/rsa.go
 // The LICENSE that applies here is https://cs.opensource.google/go/go/+/refs/tags/go1.23.2:LICENSE
 
-// based on crypto/rsa.GenerateKey, but without the randutil.MaybeReadByte invocation
+// GenerateKey is based on crypto/rsa.GenerateKey, but without the randutil.MaybeReadByte invocation
 // so it can be used to deterministically generate keys.
 func GenerateKey(random io.Reader, bits int) (*rsa.PrivateKey, error) {
 	return GenerateMultiPrimeKey(random, 2, bits)
@@ -36,7 +36,7 @@ func GenerateKey(random io.Reader, bits int) (*rsa.PrivateKey, error) {
 
 var bigOne = big.NewInt(1)
 
-// based on crypto/rsa.GenerateMultiPrimeKey, but without the randutil.MaybeReadByte invocation
+// GenerateMultiPrimeKey is based on crypto/rsa.GenerateMultiPrimeKey, but without the randutil.MaybeReadByte invocation
 // so it can be used to deterministically generate keys.
 func GenerateMultiPrimeKey(random io.Reader, nprimes int, bits int) (*rsa.PrivateKey, error) {
 	priv := new(rsa.PrivateKey)
@@ -128,7 +128,7 @@ NextSetOfPrimes:
 	return priv, nil
 }
 
-// based on crypto/rsa.Prime, but without the randutil.MaybeReadByte invocation
+// Prime is based on crypto/rsa.Prime, but without the randutil.MaybeReadByte invocation
 // so it can be used to deterministically generate keys.
 func Prime(rand io.Reader, bits int) (*big.Int, error) {
 	if bits < 2 {

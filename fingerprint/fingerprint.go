@@ -24,9 +24,11 @@ import (
 	"crypto/x509"
 	"encoding/hex"
 	"fmt"
-	rand2 "math/rand/v2"
+	"slices"
 
 	"filippo.io/keygen"
+
+	"github.com/Venafi/token-exchange/internal/rsagen"
 )
 
 func Decode(hexStr string) (Fingerprint, error) {
@@ -42,6 +44,7 @@ func Decode(hexStr string) (Fingerprint, error) {
 	return Fingerprint(decodedIDRaw), nil
 }
 
+// Fingerprint represents a SHA256 fingerprint, usually derived from an X.509 certificate
 type Fingerprint [sha256.Size]byte
 
 func (f Fingerprint) Hex() string {
@@ -52,19 +55,14 @@ func (f Fingerprint) String() string {
 	return f.Hex()
 }
 
+// seed generates a key-derivation-function seed from the fingerprint and given secret key.
+// Generated seeds _must_ be kept private.
+func (f Fingerprint) seed(secretKey []byte) [32]byte {
+	return sha256.Sum256(append(slices.Clip(f[:]), secretKey...))
+}
+
 func (f Fingerprint) DeriveRSASigningKey(secretKey []byte) (*rsa.PrivateKey, error) {
-	h := sha256.New()
-
-	// hash.Hash is documented to never return an error
-	_, _ = h.Write(f[:])
-	_, _ = h.Write(secretKey)
-
-	var seed [32]byte
-	copy(seed[:], h.Sum(nil))
-
-	rand := rand2.NewChaCha8(seed)
-
-	pk, err := GenerateKey(rand, 2048)
+	pk, err := rsagen.RSAChaCha(2048, f.seed(secretKey))
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate private key: %w", err)
 	}
@@ -73,13 +71,9 @@ func (f Fingerprint) DeriveRSASigningKey(secretKey []byte) (*rsa.PrivateKey, err
 }
 
 func (f Fingerprint) DeriveECDSASigningKey(secretKey []byte) (*ecdsa.PrivateKey, error) {
-	h := sha256.New()
+	s := f.seed(secretKey)
 
-	// hash.Hash is documented to never return an error
-	_, _ = h.Write(f[:])
-	_, _ = h.Write(secretKey)
-
-	pk, err := keygen.ECDSA(elliptic.P256(), h.Sum(nil))
+	pk, err := keygen.ECDSA(elliptic.P256(), s[:])
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate private key: %w", err)
 	}

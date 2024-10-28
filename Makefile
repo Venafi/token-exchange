@@ -15,7 +15,7 @@ bindir := _bin
 host := $(shell go env GOARCH)
 
 # cmd/token-exchange/main.go must go first
-deps := cmd/token-exchange/main.go go.mod go.sum $(wildcard srvtool/*.go) $(wildcard tokenserver/*.go) $(wildcard wellknownserver/*.go)
+deps := cmd/token-exchange/main.go go.mod go.sum $(wildcard srvtool/*.go) $(wildcard tokenserver/*.go) $(wildcard wellknownserver/*.go) $(wildcard internal/rsagen/*.go)
 
 .PHONY: build
 build: $(bindir)/token-exchange
