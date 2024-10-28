@@ -24,6 +24,10 @@ make kind-setup
 
 kubectl apply -f $cert_yaml
 
+kubectl get -n cert-manager secrets root-secret -ojson | jq -r '.data."tls.crt"' | base64 -d > _bin/root.crt
+
+kubectl create -n cert-manager configmap root-cert-trust --from-file=root.pem=_bin/root.crt -oyaml --dry-run=client | kubectl apply -f -
+
 kubectl apply -f infrastructure/deployment.yaml
 
 kubectl apply -f $secretkey_yaml

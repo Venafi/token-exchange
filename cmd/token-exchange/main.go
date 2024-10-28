@@ -17,7 +17,6 @@ limitations under the License.
 package main
 
 import (
-	"bytes"
 	"context"
 	"crypto/tls"
 	"crypto/x509"
@@ -80,13 +79,11 @@ func run(ctx context.Context, logger *slog.Logger) error {
 		return fmt.Errorf("failed to read secret key from %q: %s", secretKeyLocation, err)
 	}
 
-	if decodedLen := base64.StdEncoding.DecodedLen(len(bytes.TrimRight(base64SecretKey, "="))); decodedLen != 32 {
-		return fmt.Errorf("secret key must be 32 bytes, but got %d", decodedLen)
-	}
-
 	var secretKey [32]byte
-	if n, err := base64.StdEncoding.Decode(secretKey[:], base64SecretKey); err != nil || n != 32 {
+	if n, err := base64.StdEncoding.Decode(secretKey[:], base64SecretKey); err != nil {
 		return fmt.Errorf("failed to decode secret key from %q: %s", secretKeyLocation, err)
+	} else if n != 32 {
+		return fmt.Errorf("decoded secret key from %q must be at least 32 bytes, got %d", secretKeyLocation, n)
 	}
 
 	cert, err := tls.LoadX509KeyPair(tlsChainLocation, tlsPrivateKeyLocation)
