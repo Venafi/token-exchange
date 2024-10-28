@@ -141,6 +141,8 @@ spec:
         ports:
         - containerPort: 18749
         args:
+          - "-secret-key-location"
+          - "/secret-key/key"
           - "-tls-chain-location"
           - "/server-cert/tls.crt"
           - "-tls-private-key-location"
@@ -148,6 +150,9 @@ spec:
           - "-trust-bundle-location"
           - "/spiffe-bundle/bundle.pem"
         volumeMounts:
+        - mountPath: "/secret-key"
+          readOnly: true
+          name: token-exchange-secret-key
         - mountPath: "/server-cert"
           readOnly: true
           name: token-exchange-cert-secret
@@ -155,6 +160,9 @@ spec:
           readOnly: true
           name: spiffe-workload-trust-bundle
       volumes:
+        - name: token-exchange-secret-key
+          secret:
+            secretName: token-exchange-secret-key
         - name: token-exchange-cert-secret
           secret:
             secretName: token-exchange-cert-secret

@@ -25,4 +25,10 @@ kubectl get -n spiffe-roots-gen secrets root-secret-1 -oyaml > _bin/root.yaml
 # - metadata.namespace to "cert-manager"
 ```
 
+Additionally, you'll need to create a 32 byte secret key. You can do this with:
+
+```text
+kubectl -n token-exchange create secret generic token-exchange-secret-key --from-literal=key=$(openssl rand -base64 32) -oyaml --dry-run=client > _bin/secretkey.yaml
+```
+
 Once completed, you can run `make cluster` to create a kind cluster running the example.

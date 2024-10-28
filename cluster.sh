@@ -3,9 +3,15 @@
 set -eu -o pipefail
 
 cert_yaml=_bin/root.yaml
+secretkey_yaml=_bin/secretkey.yaml
 
 if [[ ! -f $cert_yaml ]]; then
 	echo "Expected $cert_yaml to exist; exiting"
+	exit 1
+fi
+
+if [[ ! -f $secretkey_yaml ]]; then
+	echo "Expected $secretkey_yaml to exist; exiting"
 	exit 1
 fi
 
@@ -19,6 +25,8 @@ make kind-setup
 kubectl apply -f $cert_yaml
 
 kubectl apply -f infrastructure/deployment.yaml
+
+kubectl apply -f $secretkey_yaml
 
 kubectl apply -f infrastructure/clientcert.yaml
 

@@ -144,7 +144,7 @@ func Test_handleTokenRequest(t *testing.T) {
 				(&tokenServer{
 					roots: fingerprint.RootMap{
 						rootFingerprint: func() *rsa.PrivateKey {
-							pk, err := rootFingerprint.DeriveRSASigningKey([]byte("test"))
+							pk, err := rootFingerprint.DeriveRSASigningKey([32]byte{})
 							require.NoError(t, err)
 							return pk
 						}(),
