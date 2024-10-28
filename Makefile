@@ -112,7 +112,7 @@ curl_flags=-sS --cacert _bin/root.crt
 get-token:
 	curl $(curl_flags) --cert _bin/client.crt --key _bin/client.key \
 		-XPOST \
-		-d "grant_type=urn:ietf:params:oauth:grant-type:token-exchange&subject_token_type=urn:ietf:params:oauth:token-type:tls-client-auth&aud=abc123" \
+		-d "grant_type=urn:ietf:params:oauth:grant-type:token-exchange&subject_token_type=urn:ietf:params:oauth:token-type:tls-client-auth&audience=abc123" \
 		https://localhost:9966/token \
 		| jq
 
