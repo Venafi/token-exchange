@@ -24,19 +24,22 @@ import (
 	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
-	"crypto/x509/pkix"
 	"encoding/json"
 	"io"
 	"log/slog"
 	"math/big"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/Venafi/token-exchange/fingerprint"
 	"github.com/Venafi/token-exchange/srvtool"
+	"github.com/go-jose/go-jose/v4"
+	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/go-logr/logr"
 	"github.com/stretchr/testify/require"
 )
@@ -68,11 +71,9 @@ func Test_handleTokenRequest(t *testing.T) {
 			},
 			certs: []*x509.Certificate{
 				genSelfSignedCertificate(t, &x509.Certificate{
-					Version:      3,
-					SerialNumber: big.NewInt(12345),
-					Subject: pkix.Name{
-						CommonName: "test",
-					},
+					Version:               3,
+					SerialNumber:          big.NewInt(12345),
+					URIs:                  []*url.URL{must[*url.URL](t)(url.Parse("spiffe://example.com/identity001"))},
 					BasicConstraintsValid: true,
 					IsCA:                  true,
 					NotAfter:              time.Now().Add(time.Hour),
@@ -82,6 +83,17 @@ func Test_handleTokenRequest(t *testing.T) {
 				require.NotEmpty(t, tr.AccessToken)
 				require.Equal(t, "urn:ietf:params:oauth:token-type:jwt", tr.IssuedTokenType)
 				require.Equal(t, 3600, tr.ExpiresIn)
+
+				token, err := jwt.ParseSigned(tr.AccessToken, []jose.SignatureAlgorithm{jose.RS256})
+				require.NoError(t, err)
+
+				out := jwt.Claims{}
+				err = token.UnsafeClaimsWithoutVerification(&out)
+				require.NoError(t, err)
+
+				require.Equal(t, "test", out.Audience[0])
+				require.True(t, strings.HasPrefix(out.Issuer, "https://example.com/"))
+				require.Equal(t, "spiffe://example.com/identity001", out.Subject)
 			},
 		},
 		/*
@@ -180,5 +192,13 @@ func Test_handleTokenRequest(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func must[T any](t *testing.T) func(val T, err error) T {
+	return func(val T, err error) T {
+		t.Helper()
+		require.NoError(t, err)
+		return val
 	}
 }
