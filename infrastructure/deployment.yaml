@@ -5,48 +5,6 @@ metadata:
 
 ---
 
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: root-cert-trust
-  namespace: cert-manager
-data:
-  root.pem: |-
-      -----BEGIN CERTIFICATE-----
-      MIIBtDCCAVqgAwIBAgIRAOHjzYfpkQOZ30peD2mEMQkwCgYIKoZIzj0EAwIwIDEe
-      MBwGA1UEAxMVdG9rZW4tZXhjaGFuZ2Utcm9vdC0xMB4XDTI0MTAyNDA5MjMyMVoX
-      DTI5MTAyMzA5MjMyMVowIDEeMBwGA1UEAxMVdG9rZW4tZXhjaGFuZ2Utcm9vdC0x
-      MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE1TqqCSrML6ugr2YPai6+Y1PvxYAb
-      GY0RMKeqxyYwMD7giVCYRdDEl2eQDXadC/4bspVdNo7BRxDkwozCEJYeoqN1MHMw
-      DgYDVR0PAQH/BAQDAgKkMA8GA1UdEwEB/wQFMAMBAf8wHQYDVR0OBBYEFL+9iqCe
-      hIEhhnh+UmAjiz6UWV8OMDEGA1UdEQQqMCiGJnNwaWZmZTovL3RpbS1yYW1sb3Qt
-      Z2NwLmpldHN0YWNrZXIubmV0MAoGCCqGSM49BAMCA0gAMEUCIEKsIPnzZ8xSSdT6
-      w8u5uuHbQqKpO/tXNSTI0WF+HXkOAiEAkNsmtHx7rWVnz1i/xMQiQXNWsU45heDc
-      Ow0HyT1Fik8=
-      -----END CERTIFICATE-----
-      -----BEGIN CERTIFICATE-----
-      MIIDPzCCAiegAwIBAgIQSpx3RiyMAYcsW5ZifZMC+DANBgkqhkiG9w0BAQsFADAg
-      MR4wHAYDVQQDExV0b2tlbi1leGNoYW5nZS1yb290LTIwHhcNMjQxMDI0MDkyMzIx
-      WhcNMjkxMDIzMDkyMzIxWjAgMR4wHAYDVQQDExV0b2tlbi1leGNoYW5nZS1yb290
-      LTIwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQCc7YoxMSw2nQqTxKq6
-      xUTBYbUonQXiB0oFGTeqbbsZ8nQaH1F9L9IWr/J3dg1UJEoJXZuxhnecn1MTxw7z
-      SF10YC5fbUTaa32nwLD2Q+00t3cfAeP/aWWn3sFWg9/0LSrwN/ImmHRwgQB6IO9+
-      TRGb5XyXTcdUW6GuZlHgmI6E8oQC35MzoJAtHAZSyMXEgk958PtK6RM2ZdlKUkLA
-      UIYz7h9CNnfO6kAYlK4OTA3sIGetm2nNHjt1dj+bJ1hzjfKGzbam2wZ+T0f5nqmy
-      rplv4DXdp/jjwvF1h7eCm4iu59Ancg2MHuqj+DR4Cu6B6LF8OyVQvTEQ6YPXOV9k
-      jRwxAgMBAAGjdTBzMA4GA1UdDwEB/wQEAwICpDAPBgNVHRMBAf8EBTADAQH/MB0G
-      A1UdDgQWBBQs78nNzwnJxUhsXRDimZiiWxkXQzAxBgNVHREEKjAohiZzcGlmZmU6
-      Ly90aW0tcmFtbG90LWdjcC5qZXRzdGFja2VyLm5ldDANBgkqhkiG9w0BAQsFAAOC
-      AQEAY2kvo4Veg+WtC+QnhFto7SHqNXq6vcMRA0YvkPz4EJ4bk+1lypYjMhgkH73p
-      lmYzIwhVgOL2r3qnWIQVtjswR/v5XlaoUjz/iWW8AOjWxpuEKaHli0ywcV296KD+
-      ylzpPE1+E0KAu4QGUfJ9RRKzcdgzMFJxO0Pi1AWdigW4F/RS7kDqDfLU75fxDZM1
-      7/IEOju4IxiNkVdPrDTriqpYDzuLSvUZo26Cyt8DTsfH4uqY4IXzI+AX5vU8B6Wf
-      HPPeb4FjAwdm4zsppvChhlFOsDvN2GxM53yqVx2RqTtxB4yyfVsSWnXtxlun9LpD
-      5fIaTLWU/1NOkgpmDZGbncupFw==
-      -----END CERTIFICATE-----
-
----
-
 apiVersion: cert-manager.io/v1
 kind: ClusterIssuer
 metadata:

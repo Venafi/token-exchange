@@ -106,7 +106,7 @@ port-forward-token:
 port-forward-wellknown:
 	kubectl port-forward -n token-exchange $(shell kubectl get pods -n token-exchange -l app=token-exchange -ojson | jq -r '.items[0].metadata.name') 9119:9119
 
-curl_flags=-sS --cacert infrastructure/root.pem
+curl_flags=-sS --cacert _bin/root.crt
 
 .PHONY: get-token
 get-token:
@@ -119,13 +119,13 @@ get-token:
 .PHONY: get-openid-configuration
 get-openid-configuration:
 	curl $(curl_flags) \
-		https://localhost:9119/.well-known/78eb04b2a5e9b4a1e6f4bd4d31dcca7937ec1acb12c53f52e433adbfcfbcf178/openid-configuration \
+		https://localhost:9119/.well-known/5d1c60b86985e45cf94a4d02ae84c5d9025394beef3a9bf0f1e82d859c0f2260/openid-configuration \
 		| jq
 
 .PHONY: get-jwks
 get-jwks:
 	curl $(curl_flags) \
-		https://localhost:9119/.well-known/78eb04b2a5e9b4a1e6f4bd4d31dcca7937ec1acb12c53f52e433adbfcfbcf178/jwks \
+		https://localhost:9119/.well-known/5d1c60b86985e45cf94a4d02ae84c5d9025394beef3a9bf0f1e82d859c0f2260/jwks \
 		| jq
 
 $(bindir) $(bindir)/release:
