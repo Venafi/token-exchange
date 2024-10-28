@@ -24,6 +24,7 @@ import (
 	"crypto/x509"
 	"encoding/hex"
 	"fmt"
+	"slices"
 
 	"filippo.io/keygen"
 
@@ -57,7 +58,7 @@ func (f Fingerprint) String() string {
 // seed generates a key-derivation-function seed from the fingerprint and given secret key.
 // Generated seeds _must_ be kept private.
 func (f Fingerprint) seed(secretKey []byte) [32]byte {
-	return sha256.Sum256(append(f[:], secretKey...))
+	return sha256.Sum256(append(slices.Clip(f[:]), secretKey...))
 }
 
 func (f Fingerprint) DeriveRSASigningKey(secretKey []byte) (*rsa.PrivateKey, error) {
