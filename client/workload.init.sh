@@ -1,13 +1,18 @@
 #!/bin/bash
 
-CERT_FILE=${CERT_FILE:=/var/run/secrets/spiffe.io/tls.crt}
+CERT_FILES=( $(IFS=" " echo "${CERT_FILES:-/var/run/secrets/spiffe.io/tls.crt /var/run/secrets/spiffe.io/ca.crt}") )
 KEY_FILE=${KEY_FILE:=/var/run/secrets/spiffe.io/tls.key}
-TOKEN_URL=${TOKEN_URL:=https://token-exchange-token.token-exchange.svc.cluster.local}
 
-if [ ! -f "$CERT_FILE" ]; then
-    echo "Certificate file not found: $CERT_FILE" >&2
-    exit 1
-fi
+# Use online token exchange so the URL is publicly available and trusted.
+# TOKEN_URL=${TOKEN_URL:=https://token-exchange-token.token-exchange.svc.cluster.local}
+TOKEN_URL=${TOKEN_URL:=https://token.tim-ramlot-gcp.jetstacker.net}
+
+for CERT_FILE in "${CERT_FILES[@]}"; do
+    if [ ! -f "$CERT_FILE" ]; then
+        echo "Certificate file not found: $CERT_FILE" >&2
+        exit 1
+    fi
+done
 
 if [ -z "$TOKEN_URL" ]; then
     echo "TOKEN_URL is not set" >&2
@@ -23,10 +28,16 @@ request_jwt() {
     audience=$1
 
     token=$(curl -s -X POST "$TOKEN_URL/token" \
-        --key "$KEY_FILE" --cert "$CERT_FILE" \
+        --key "$KEY_FILE" --cert <(cat "${CERT_FILES[@]}") \
         -d "grant_type=urn:ietf:params:oauth:grant-type:token-exchange&subject_token_type=urn:ietf:params:oauth:token-type:tls-client-auth&audience=$audience")
 
     echo ">> I exchanged this certificate for this JWT token (using \"$TOKEN_URL/token\"):" >&2
+
+    # Check for an error response
+    if ! echo "$token" | jq -e "has(\"access_token\")" > /dev/null; then
+        echo ">> Error: $token" >&2
+        exit 1
+    fi
 
     decodejwt=$(echo "$token" | jq .access_token | jq -R 'split(".") | .[1] | @base64d | fromjson')
     echo "$decodejwt" | jq >&2

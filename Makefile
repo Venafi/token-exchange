@@ -97,11 +97,11 @@ kind-setup:
 
 .PHONY: port-forward-token
 port-forward-token:
-	kubectl port-forward -n token-exchange $(shell kubectl get pods -n token-exchange -l app=token-exchange -ojson | jq -r '.items[0].metadata.name') 9966:9966
+	kubectl port-forward -n token-exchange service/token-exchange-token 9966:443
 
 .PHONY: port-forward-wellknown
 port-forward-wellknown:
-	kubectl port-forward -n token-exchange $(shell kubectl get pods -n token-exchange -l app=token-exchange -ojson | jq -r '.items[0].metadata.name') 9119:9119
+	kubectl port-forward -n token-exchange service/token-exchange-wellknown 9119:443
 
 curl_flags=-sS --cacert _bin/root.crt
 
