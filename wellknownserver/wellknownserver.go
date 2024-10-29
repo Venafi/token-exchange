@@ -117,7 +117,8 @@ func (wks *wellKnownServer) extractRootID(r *http.Request) (fingerprint.Fingerpr
 type oidcConfigurationResponse struct {
 	SupportedSigningAlgs   []string `json:"id_token_signing_alg_values_supported"`
 	SupportedResponseTypes []string `json:"response_types_supported"`
-	SupportedSubjectTypes  []string `json:"public"`
+	SupportedSubjectTypes  []string `json:"subject_types_supported"`
+	SupportedClaims        []string `json:"claims_supported"`
 
 	Issuer  string `json:"issuer"`
 	JWKsURI string `json:"jwks_uri"`
@@ -135,9 +136,9 @@ func (wks *wellKnownServer) handleOpenIDConfiguration(r *http.Request) srvtool.R
 		SupportedSigningAlgs:   []string{"RS256"}, // TODO: should depend on signing key type? haven't checked
 		SupportedResponseTypes: []string{"id_token"},
 		SupportedSubjectTypes:  []string{"public"},
+		SupportedClaims:        []string{"iss", "sub", "aud", "exp", "iat"},
 
-		Issuer: wks.issuerURL + "/" + fprint.Hex(),
-
+		Issuer:  wks.issuerURL + "/" + fprint.Hex(),
 		JWKsURI: "https://" + jwksHost + "/" + fprint.Hex() + "/.well-known/jwks",
 	})
 }
