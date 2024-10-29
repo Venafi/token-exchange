@@ -43,13 +43,18 @@ container-linux-amd64: Containerfile $(bindir)/release/token-exchange-linux-amd6
 container-linux-arm64: Containerfile $(bindir)/release/token-exchange-linux-arm64
 	$(ctr) build -t cert-manager.local/token-exchange -f Containerfile --build-arg TARGETARCH=arm64 ./$(bindir)/release
 
+.PHONY: client-linux
+client-linux: client/workload.Containerfile
+	$(ctr) build -t cert-manager.local/client-workload -f client/workload.Containerfile ./client
+
 .PHONY: kind-load
-kind-load: container-linux-$(host)
+kind-load: container-linux-$(host) client-linux
 	kind load docker-image --name $(kind_cluster) cert-manager.local/token-exchange:latest
+	kind load docker-image --name $(kind_cluster) cert-manager.local/client-workload:latest
 
 CERT_MANAGER_VERSION=v1.16.1
 TRUST_MANAGER_VERSION=v0.12.0
-CSI_DRIVER_SPIFFE_VERSION=v0.8.1
+CSI_DRIVER_VERSION=v0.10.1
 
 .PHONY: cluster
 cluster:
@@ -64,8 +69,7 @@ kind-load-deps:
 	docker pull quay.io/jetstack/cert-manager-startupapicheck:$(CERT_MANAGER_VERSION)
 	docker pull quay.io/jetstack/trust-manager:$(TRUST_MANAGER_VERSION)
 	docker pull quay.io/jetstack/cert-manager-package-debian:20210119.0
-	docker pull quay.io/jetstack/cert-manager-csi-driver-spiffe:$(CSI_DRIVER_SPIFFE_VERSION)
-	docker pull quay.io/jetstack/cert-manager-csi-driver-spiffe-approver:$(CSI_DRIVER_SPIFFE_VERSION)
+	docker pull quay.io/jetstack/cert-manager-csi-driver:$(CSI_DRIVER_VERSION)
 	kind load docker-image --name $(kind_cluster) quay.io/jetstack/cert-manager-controller:$(CERT_MANAGER_VERSION)
 	kind load docker-image --name $(kind_cluster) quay.io/jetstack/cert-manager-webhook:$(CERT_MANAGER_VERSION)
 	kind load docker-image --name $(kind_cluster) quay.io/jetstack/cert-manager-acmesolver:$(CERT_MANAGER_VERSION)
@@ -73,8 +77,7 @@ kind-load-deps:
 	kind load docker-image --name $(kind_cluster) quay.io/jetstack/cert-manager-startupapicheck:$(CERT_MANAGER_VERSION)
 	kind load docker-image --name $(kind_cluster) quay.io/jetstack/trust-manager:$(TRUST_MANAGER_VERSION)
 	docker pull quay.io/jetstack/cert-manager-package-debian:20210119.0
-	kind load docker-image --name $(kind_cluster) quay.io/jetstack/cert-manager-csi-driver-spiffe:$(CSI_DRIVER_SPIFFE_VERSION)
-	kind load docker-image --name $(kind_cluster) quay.io/jetstack/cert-manager-csi-driver-spiffe-approver:$(CSI_DRIVER_SPIFFE_VERSION)
+	kind load docker-image --name $(kind_cluster) quay.io/jetstack/cert-manager-csi-driver:$(CSI_DRIVER_VERSION)
 
 .PHONY: kind-setup
 kind-setup:
@@ -88,15 +91,9 @@ kind-setup:
 		--namespace cert-manager \
 		--set "defaultPackageImage.tag=20210119.0" \
 		--wait
-	helm install cert-manager-csi-driver-spiffe jetstack/cert-manager-csi-driver-spiffe --wait \
+	helm install cert-manager-csi-driver jetstack/cert-manager-csi-driver --wait \
 		--namespace cert-manager \
-		--version $(CSI_DRIVER_SPIFFE_VERSION) \
-		--set "app.logLevel=1" \
-		--set "app.trustDomain=my.trust.domain" \
-		--set "app.issuer.name=" \
-		--set "app.issuer.kind=" \
-		--set "app.issuer.group=" \
-		--set "app.runtimeIssuanceConfigMap=spiffe-issuer"
+		--version $(CSI_DRIVER_VERSION)
 
 .PHONY: port-forward-token
 port-forward-token:

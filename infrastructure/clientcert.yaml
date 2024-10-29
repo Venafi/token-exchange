@@ -1,23 +1,26 @@
-# This generates a long-lived client certificate useful for testing
-
-apiVersion: cert-manager.io/v1
-kind: Certificate
+apiVersion: v1
+kind: Pod
 metadata:
-  name: client-cert
+  name: client
   namespace: default
 spec:
-  isCA: false
-  secretName: client-cert
-  subject:
-    organizations:
-    - cert-manager
-  uris:
-  - spiffe://tim-ramlot-gcp.jetstacker.net/client-cert
-  duration: 8760h  # 1 year
-  privateKey:
-    algorithm: ECDSA
-    size: 256
-  issuerRef:
-    name: workload-issuer
-    kind: ClusterIssuer
-    group: cert-manager.io
+  containers:
+  - name: client-workload
+    image: cert-manager.local/client-workload:latest
+    imagePullPolicy: Never
+    command: ['sh', '-c', 'echo "Hello, Kubernetes!" && sleep 3600']
+
+    volumeMounts:
+    - mountPath: "/var/run/secrets/spiffe.io"
+      name: spiffe
+  volumes:
+    - name: spiffe
+      csi:
+        driver: csi.cert-manager.io
+        readOnly: true
+        volumeAttributes:
+          csi.cert-manager.io/issuer-name: workload-issuer
+          csi.cert-manager.io/issuer-kind: ClusterIssuer
+          csi.cert-manager.io/issuer-group: cert-manager.io
+
+          csi.cert-manager.io/uri-sans: spiffe://tim-ramlot-gcp.jetstacker.net/workload

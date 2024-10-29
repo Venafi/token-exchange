@@ -23,18 +23,6 @@ metadata:
 
 ---
 
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: spiffe-issuer
-  namespace: cert-manager
-data:
-  issuer-name: workload-issuer
-  issuer-kind: ClusterIssuer
-  issuer-group: cert-manager.io
-
----
-
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
@@ -76,6 +64,34 @@ spec:
 
 ---
 
+apiVersion: v1
+kind: Service
+metadata:
+  name: token-exchange-token
+spec:
+  selector:
+    app: token-exchange
+  ports:
+    - protocol: TCP
+      port: 443
+      targetPort: 9966
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: token-exchange-wellknown
+spec:
+  selector:
+    app: token-exchange
+  ports:
+    - protocol: TCP
+      port: 443
+      targetPort: 9119
+
+---
+
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -97,7 +113,10 @@ spec:
         image: cert-manager.local/token-exchange:latest
         imagePullPolicy: IfNotPresent
         ports:
-        - containerPort: 18749
+        - name: https-token
+          containerPort: 9966
+        - name: https-wellknown
+          containerPort: 9119
         args:
           - "-secret-key-location"
           - "/secret-key/key"
