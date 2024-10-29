@@ -76,8 +76,8 @@ func newServer(roots fingerprint.RootMap, discoverEndpoint string) http.Handler 
 		issuerURL: "https://" + discoverEndpoint,
 	}
 
-	mux.HandleFunc("GET /.well-known/{rootIDHex}/openid-configuration", srvtool.JSONHandler(srv.handleOpenIDConfiguration))
-	mux.HandleFunc("GET /.well-known/{rootIDHex}/jwks", srvtool.JSONHandler(srv.handleJWKs))
+	mux.HandleFunc("GET /{rootIDHex}/.well-known/openid-configuration", srvtool.JSONHandler(srv.handleOpenIDConfiguration))
+	mux.HandleFunc("GET /{rootIDHex}/.well-known/jwks", srvtool.JSONHandler(srv.handleJWKs))
 
 	mux.HandleFunc("GET /status", srvtool.JSONHandler(srv.handleStatusRequest))
 
