@@ -171,17 +171,19 @@ if [ "$AZURE_ENABLE" == "true" ]; then
     echo ">> Requesting Azure JWT token (audience: $AZURE_AUDIENCE)" >&2
     azure_jwt=$(request_jwt "$AZURE_AUDIENCE")
 
-    echo ">> Saving JWT in ./azure-jwt-token" >&2
-    echo "$azure_jwt" > ./azure-jwt-token
+    mkdir -p ~/.azure
+
+    echo ">> Saving JWT in ~/.azure/azure-jwt-token" >&2
+    echo "$azure_jwt" > ~/.azure/azure-jwt-token
 
     az login --service-principal -u "$AZURE_APPLICATION_ID" --federated-token "$azure_jwt" --tenant "$AZURE_TENANT_ID"
 fi
 
-# AWS_ENABLE=true AWS_AUDIENCE=aws AWS_ROLE=<ROLE> 01_workload.init.sh
+# AWS_ENABLE=true AWS_AUDIENCE=aws AWS_ROLE=<ROLE> workload.init.sh
 # aws s3 ls
 
-# AZURE_ENABLE=true AZURE_AUDIENCE=azure AZURE_APPLICATION_ID=<APPLICATION_ID> AZURE_TENANT_ID=<TENANT_ID> 01_workload.init.sh
+# AZURE_ENABLE=true AZURE_AUDIENCE=azure AZURE_APPLICATION_ID=<APPLICATION_ID> AZURE_TENANT_ID=<TENANT_ID> workload.init.sh
 # az storage blob list --auth-mode login -c demo --account-name kubeconna24demo
 
-# GCLOUD_ENABLE=true GCLOUD_AUDIENCE=gcloud GCLOUD_SA=<SA_NAME>@<PROJECT_NAME>.iam.gserviceaccount.com GCLOUD_PROVIDER=//iam.googleapis.com/projects/<PROJECT_ID>/locations/global/workloadIdentityPools/<POOL_NAME>/providers/<PROVIDER_NAME> GCLOUD_PROJECT=<PROJECT_NAME> 01_workload.init.sh
+# GCLOUD_ENABLE=true GCLOUD_AUDIENCE=gcloud GCLOUD_SA=<SA_NAME>@<PROJECT_NAME>.iam.gserviceaccount.com GCLOUD_PROVIDER=//iam.googleapis.com/projects/<PROJECT_ID>/locations/global/workloadIdentityPools/<POOL_NAME>/providers/<PROVIDER_NAME> GCLOUD_PROJECT=<PROJECT_NAME> workload.init.sh
 # gcloud storage ls gs://demo-venafi-testbucket
