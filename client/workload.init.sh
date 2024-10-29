@@ -1,8 +1,8 @@
 #!/bin/bash
 
-CERT_FILE=${CERT_FILE:=svid.pem}
-KEY_FILE=${KEY_FILE:=svid.key}
-TOKEN_URL=${TOKEN_URL:=https://token.tim-ramlot-gcp.jetstacker.net}
+CERT_FILE=${CERT_FILE:=/var/run/secrets/spiffe.io/tls.crt}
+KEY_FILE=${KEY_FILE:=/var/run/secrets/spiffe.io/tls.key}
+TOKEN_URL=${TOKEN_URL:=https://token-exchange-token.token-exchange.svc.cluster.local}
 
 if [ ! -f "$CERT_FILE" ]; then
     echo "Certificate file not found: $CERT_FILE" >&2

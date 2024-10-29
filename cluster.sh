@@ -33,8 +33,3 @@ kubectl apply -f infrastructure/deployment.yaml
 kubectl apply -f $secretkey_yaml
 
 kubectl apply -f infrastructure/clientcert.yaml
-
-kubectl wait --for=condition=Ready certificates/client-cert
-
-kubectl get -n default secrets client-cert -ojson | jq -r '.data."tls.crt"' | base64 -d > _bin/client.crt
-kubectl get -n default secrets client-cert -ojson | jq -r '.data."tls.key"' | base64 -d > _bin/client.key
