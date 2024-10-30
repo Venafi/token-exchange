@@ -1,0 +1,66 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: spiffe-workload-example-pod
+  namespace: default
+
+---
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: spiffe-workload-example-pod
+  namespace: default
+spec:
+  serviceAccountName: spiffe-workload-example-pod
+  initContainers:
+  - name: spiffe-workload
+    image: cert-manager.local/spiffe-workload:latest
+    imagePullPolicy: Never
+    restartPolicy: Always
+    args:
+    - "-tls-chain-location"
+    - "/tls/tls.crt"
+    - "-tls-private-key-location"
+    - "/tls/tls.key"
+    - "-ca-bundle-location"
+    - "/tls-trust/bundle.pem"
+    - "-token-exchange-token-url"
+    - "https://token-exchange-token.token-exchange.svc.cluster.local"
+    - "-token-exchange-wellknown-url"
+    - "https://token-exchange-wellknown.token-exchange.svc.cluster.local"
+    volumeMounts:
+    - mountPath: "/tls"
+      readOnly: true
+      name: spiffe
+    - mountPath: "/spiffe"
+      name: spiffe-dir
+    - mountPath: "/tls-trust"
+      readOnly: true
+      name: spiffe-workload-trust-bundle
+  containers:
+  - name: client
+    image: cert-manager.local/spire-agent-client:latest
+    imagePullPolicy: Never
+    volumeMounts:
+    - mountPath: "/spiffe"
+      name: spiffe-dir
+  volumes:
+    - name: spiffe
+      csi:
+        driver: csi.cert-manager.io
+        readOnly: true
+        volumeAttributes:
+          csi.cert-manager.io/issuer-name: workload-issuer
+          csi.cert-manager.io/issuer-kind: ClusterIssuer
+          csi.cert-manager.io/issuer-group: cert-manager.io
+          csi.cert-manager.io/uri-sans: spiffe://tim-ramlot-gcp.jetstacker.net/example-pod
+    - name: spiffe-dir
+      emptyDir:
+        sizeLimit: 25Mi
+    - name: spiffe-workload-trust-bundle
+      configMap:
+        name: spiffe-workload-trust-bundle
+        items:
+        - key: bundle.pem
+          path: bundle.pem

@@ -106,10 +106,13 @@ func (ts *tokenServer) handleStatusRequest(r *http.Request) srvtool.Response {
 	})
 }
 
-type tokenResponse struct {
+// GetTokenResponse is the response returned by a call to `POST /token` on the tokenserver.
+// A successful response contains a JWT in AccessToken
+type GetTokenResponse struct {
 	AccessToken     string `json:"access_token"`
 	IssuedTokenType string `json:"issued_token_type"`
 	ExpiresIn       int    `json:"expires_in"`
+	SPIFFEID        string `json:"spiffe_id"`
 }
 
 func (ts *tokenServer) handleTokenRequest(r *http.Request) srvtool.Response {
@@ -193,10 +196,11 @@ func (ts *tokenServer) handleTokenRequest(r *http.Request) srvtool.Response {
 	}
 
 	return srvtool.Ok(
-		tokenResponse{
+		GetTokenResponse{
 			AccessToken:     jwt,
 			IssuedTokenType: "urn:ietf:params:oauth:token-type:jwt",
 			ExpiresIn:       int(expiresAt.Sub(issuedAt).Seconds()),
+			SPIFFEID:        subject,
 		},
 	)
 }

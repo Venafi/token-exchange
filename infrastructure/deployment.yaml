@@ -36,7 +36,12 @@ spec:
     - cert-manager
   dnsNames:
   - "token-exchange.token-exchange.svc.cluster.local"
+  - "token-exchange.token-exchange.svc"
   - "token-exchange.token-exchange"
+  - "token-exchange-token.token-exchange.svc.cluster.local"
+  - "token-exchange-token.token-exchange.svc"
+  - "token-exchange-wellknown.token-exchange.svc.cluster.local"
+  - "token-exchange-wellknown.token-exchange.svc"
   - "localhost"
   duration: 87600h  # 10 years
   privateKey:

@@ -18,16 +18,16 @@ host := $(shell go env GOARCH)
 deps := cmd/token-exchange/main.go go.mod go.sum $(wildcard srvtool/*.go) $(wildcard tokenserver/*.go) $(wildcard wellknownserver/*.go) $(wildcard internal/rsagen/*.go)
 
 .PHONY: build
-build: $(bindir)/token-exchange
+build: $(bindir)/token-exchange $(bindir)/spiffe-workload-fs
 
 $(bindir)/token-exchange: $(deps) | $(bindir)
 	CGO_ENABLED=0 go build -o $@ $<
 
 .PHONY: build-linux-amd64
-build-linux-amd64: $(bindir)/release/token-exchange-linux-amd64
+build-linux-amd64: $(bindir)/release/token-exchange-linux-amd64 $(bindir)/release/spiffe-workload-linux-amd64
 
 .PHONY: build-linux-arm64
-build-linux-arm64: $(bindir)/release/token-exchange-linux-arm64
+build-linux-arm64: $(bindir)/release/token-exchange-linux-arm64 $(bindir)/release/spiffe-workload-linux-amd64
 
 $(bindir)/release/token-exchange-linux-amd64: $(deps) | $(bindir)/release
 	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o $@ $<
@@ -51,10 +51,33 @@ client-linux-amd64: client/workload.Containerfile
 client-linux-arm64: client/workload.Containerfile
 	$(ctr) build -t cert-manager.local/client-workload -f client/workload.Containerfile --build-arg AWSTARGETARCH=aarch64 ./client
 
+$(bindir)/spiffe-workload: $(wildcard cmd/spiffe-workload/*.go) $(deps) | $(bindir)
+	CGO_ENABLED=0 go build -o $@ cmd/spiffe-workload/main.go
+
+$(bindir)/release/spiffe-workload-linux-amd64: $(wildcard cmd/spiffe-workload/*.go) $(deps) | $(bindir)/release
+	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o $@ cmd/spiffe-workload/main.go
+
+$(bindir)/release/spiffe-workload-linux-arm64: $(wildcard cmd/spiffe-workload/*.go) $(deps) | $(bindir)/release
+	GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -o $@ cmd/spiffe-workload/main.go
+
+.PHONY: spiffe-workload-container-linux-amd64
+spiffe-workload-container-linux-amd64: Containerfile.spiffe-workload $(bindir)/release/spiffe-workload-linux-amd64
+	$(ctr) build -t cert-manager.local/spiffe-workload -f Containerfile.spiffe-workload --build-arg TARGETARCH=amd64 ./$(bindir)/release
+
+.PHONY: spiffe-workload-container-linux-arm64
+spiffe-workload-container-linux-arm64: Containerfile.spiffe-workload $(bindir)/release/spiffe-workload-linux-arm64
+	$(ctr) build -t cert-manager.local/spiffe-workload -f Containerfile.spiffe-workload --build-arg TARGETARCH=arm64 ./$(bindir)/release
+
+.PHONY: spire-agent-client-container-linux
+spire-agent-client-container-linux: $(wildcard spire-agent-client/*)
+	$(ctr) build -t cert-manager.local/spire-agent-client -f spire-agent-client/Containerfile ./spire-agent-client
+
 .PHONY: kind-load
-kind-load: container-linux-$(host) client-linux-$(host)
+kind-load: container-linux-$(host) spiffe-workload-container-linux-$(host) spire-agent-client-container-linux client-linux-$(host)
 	kind load docker-image --name $(kind_cluster) cert-manager.local/token-exchange:latest
 	kind load docker-image --name $(kind_cluster) cert-manager.local/client-workload:latest
+	kind load docker-image --name $(kind_cluster) cert-manager.local/spiffe-workload:latest
+	kind load docker-image --name $(kind_cluster) cert-manager.local/spire-agent-client:latest
 
 CERT_MANAGER_VERSION=v1.16.1
 TRUST_MANAGER_VERSION=v0.12.0
@@ -63,6 +86,10 @@ CSI_DRIVER_VERSION=v0.10.1
 .PHONY: cluster
 cluster:
 	./cluster.sh
+
+.PHONY: cluster-demo
+cluster-demo:
+	./cluster-demo.sh
 
 .PHONY: kind-load-deps
 kind-load-deps:

@@ -28,10 +28,7 @@ kubectl get -n cert-manager secrets root-secret -ojson | jq -r '.data."tls.crt"'
 
 kubectl create -n cert-manager configmap root-cert-trust --from-file=root.pem=_bin/root.crt -oyaml --dry-run=client | kubectl apply -f -
 
-kubectl apply -f infrastructure/deployment.yaml
-
 kubectl apply -f $secretkey_yaml
 
-kubectl apply -f infrastructure/client_workload.yaml
-
-kubectl apply -f infrastructure/spiffe_workload_example.yaml
+# kubectl apply -f infrastructure/deployment.yaml
+# kubectl apply -f infrastructure/spiffe-workload-example.yaml

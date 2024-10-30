@@ -1,0 +1,13 @@
+FROM scratch
+
+ARG TARGETARCH
+
+LABEL description="Statically serve an SVID from the filesystem over a Unix domain socket"
+
+USER 1001
+
+COPY ./spiffe-workload-linux-$TARGETARCH /usr/bin/spiffe-workload
+
+WORKDIR /
+
+ENTRYPOINT ["/usr/bin/spiffe-workload"]
