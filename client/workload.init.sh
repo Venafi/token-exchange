@@ -1,4 +1,6 @@
-#!/bin/bash
+#!/usr/bin/env bash
+
+set -eu -o pipefail
 
 CERT_FILES=( $(IFS=" " echo "${CERT_FILES:-/var/run/secrets/spiffe.io/tls.crt /var/run/secrets/spiffe.io/ca.crt}") )
 KEY_FILE=${KEY_FILE:=/var/run/secrets/spiffe.io/tls.key}
@@ -31,7 +33,7 @@ request_jwt() {
         --key "$KEY_FILE" --cert <(cat "${CERT_FILES[@]}") \
         -d "grant_type=urn:ietf:params:oauth:grant-type:token-exchange&subject_token_type=urn:ietf:params:oauth:token-type:tls-client-auth&audience=$audience")
 
-    echo ">> I exchanged this certificate for this JWT token (using \"$TOKEN_URL/token\"):" >&2
+    echo ">> Exchanged certificate for JWT (using \"$TOKEN_URL/token\")" >&2
 
     # Check for an error response
     if ! echo "$token" | jq -e "has(\"access_token\")" > /dev/null; then
@@ -40,15 +42,17 @@ request_jwt() {
     fi
 
     decodejwt=$(echo "$token" | jq .access_token | jq -R 'split(".") | .[1] | @base64d | fromjson')
-    echo "$decodejwt" | jq >&2
+
+    # Don't echo token; don't want it to be logged
+    # echo "$decodejwt" | jq >&2
 
     jwt=$(echo "$token" | jq .access_token | tr -d '"')
     issuer=$(echo "$decodejwt" | jq .iss)
     subject=$(echo "$decodejwt" | jq .sub)
 
-    echo ">> This JWT is valid within the $issuer issuer (which is unique for your x509 CA)" >&2
-    echo ">> This JWT is for the subject $subject" >&2
-    echo ">> This JWT is for the audience $audience" >&2
+    echo ">> JWT issuer:   $issuer" >&2
+    echo ">> JWT subject:  $subject" >&2
+    echo ">> JWT audience: $audience" >&2
 
     echo "$jwt"
 }
@@ -91,7 +95,6 @@ if [ "$GCLOUD_ENABLE" == "true" ]; then
 
     token_path="$(cd ~/.gcloud/ || exit; pwd)/gcloud-jwt-token"
 
-    echo ">> Create credentials file for gcloud" >&2
 
     cat << EOF > gcloud.cred.json
 {
@@ -109,8 +112,13 @@ if [ "$GCLOUD_ENABLE" == "true" ]; then
 }
 EOF
 
-    gcloud auth login --cred-file=gcloud.cred.json
-    gcloud config set project "$GCLOUD_PROJECT"
+    echo ">> Created credentials file for gcloud" >&2
+
+    gcloud auth login --cred-file=gcloud.cred.json > /tmp/gcloud-login-output.txt
+    gcloud config set project "$GCLOUD_PROJECT" > /dev/null
+
+    echo ">> Configured gcloud CLI" >&2
+	echo "" >&2
 fi
 
 AWS_ENABLE=${AWS_ENABLE:="false"}
@@ -136,7 +144,7 @@ if [ "$AWS_ENABLE" == "true" ]; then
 
     echo ">> Saving JWT in ~/.aws/aws-jwt-token" >&2
     echo "$aws_jwt" > ~/.aws/aws-jwt-token
-    
+
     token_path="$(cd ~/.aws/ || exit; pwd)/aws-jwt-token"
 
     cat << EOF > ~/.aws/config
@@ -144,6 +152,9 @@ if [ "$AWS_ENABLE" == "true" ]; then
 role_arn=$AWS_ROLE
 web_identity_token_file=$token_path
 EOF
+
+    echo ">> Created credentials file for AWS" >&2
+    echo "" >&2
 fi
 
 AZURE_ENABLE=${AZURE_ENABLE:="false"}
@@ -176,14 +187,8 @@ if [ "$AZURE_ENABLE" == "true" ]; then
     echo ">> Saving JWT in ~/.azure/azure-jwt-token" >&2
     echo "$azure_jwt" > ~/.azure/azure-jwt-token
 
-    az login --service-principal -u "$AZURE_APPLICATION_ID" --federated-token "$azure_jwt" --tenant "$AZURE_TENANT_ID"
+    az login --service-principal -u "$AZURE_APPLICATION_ID" --federated-token "$azure_jwt" --tenant "$AZURE_TENANT_ID" > /tmp/azure-login-output.txt
+
+    echo ">> Completed login for Azure" >&2
+    echo "" >&2
 fi
-
-# AWS_ENABLE=true AWS_AUDIENCE=aws AWS_ROLE=<ROLE> workload.init.sh
-# aws s3 ls
-
-# AZURE_ENABLE=true AZURE_AUDIENCE=azure AZURE_APPLICATION_ID=<APPLICATION_ID> AZURE_TENANT_ID=<TENANT_ID> workload.init.sh
-# az storage blob list --auth-mode login -c demo --account-name kubeconna24demo
-
-# GCLOUD_ENABLE=true GCLOUD_AUDIENCE=gcloud GCLOUD_SA=<SA_NAME>@<PROJECT_NAME>.iam.gserviceaccount.com GCLOUD_PROVIDER=//iam.googleapis.com/projects/<PROJECT_ID>/locations/global/workloadIdentityPools/<POOL_NAME>/providers/<PROVIDER_NAME> GCLOUD_PROJECT=<PROJECT_NAME> workload.init.sh
-# gcloud storage ls gs://demo-venafi-testbucket
