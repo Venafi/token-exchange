@@ -114,8 +114,8 @@ EOF
 
     echo ">> Created credentials file for gcloud" >&2
 
-    gcloud auth login --cred-file=gcloud.cred.json > /tmp/gcloud-login-output.txt
-    gcloud config set project "$GCLOUD_PROJECT" > /dev/null
+    gcloud auth login --cred-file=gcloud.cred.json
+    gcloud config set project "$GCLOUD_PROJECT"
 
     echo ">> Configured gcloud CLI" >&2
 	echo "" >&2
