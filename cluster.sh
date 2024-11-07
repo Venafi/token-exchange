@@ -32,4 +32,4 @@ kubectl apply -f infrastructure/deployment.yaml
 
 kubectl apply -f $secretkey_yaml
 
-kubectl apply -f infrastructure/clientcert.yaml
+kubectl apply -f infrastructure/client_workload.yaml

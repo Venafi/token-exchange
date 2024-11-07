@@ -1,11 +1,13 @@
 FROM ubuntu:latest
 
+ARG AWSTARGETARCH
+
 RUN \
     apt-get update -y && \
-    apt-get install -y curl jq unzip gpg && \
+    apt-get install -y curl jq unzip gpg vim && \
     \
     apt-get install -y mandoc && \
-    curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip" && \
+    curl "https://awscli.amazonaws.com/awscli-exe-linux-$AWSTARGETARCH.zip" -o "awscliv2.zip" && \
     unzip awscliv2.zip && \
     ./aws/install && \
     rm -rf awscliv2.zip aws && \
@@ -21,4 +23,15 @@ RUN \
     rm -rf /var/lib/apt/lists/*
 
 COPY workload.init.sh /usr/local/bin/workload.init.sh
-RUN chmod +x /usr/local/bin/workload.init.sh
+COPY fetch-aws.sh /fetch-aws.sh
+COPY fetch-gcp.sh /fetch-gcp.sh
+COPY fetch-azure.sh /fetch-azure.sh
+
+RUN chmod +x /usr/local/bin/workload.init.sh && \
+    chmod +x /fetch-aws.sh && \
+    chmod +x /fetch-gcp.sh && \
+    chmod +x /fetch-azure.sh
+
+WORKDIR /
+
+# vim: syntax=Dockerfile

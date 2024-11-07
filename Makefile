@@ -43,12 +43,16 @@ container-linux-amd64: Containerfile $(bindir)/release/token-exchange-linux-amd6
 container-linux-arm64: Containerfile $(bindir)/release/token-exchange-linux-arm64
 	$(ctr) build -t cert-manager.local/token-exchange -f Containerfile --build-arg TARGETARCH=arm64 ./$(bindir)/release
 
-.PHONY: client-linux
-client-linux: client/workload.Containerfile
-	$(ctr) build -t cert-manager.local/client-workload -f client/workload.Containerfile ./client
+.PHONY: client-linux-amd64
+client-linux-amd64: client/workload.Containerfile
+	$(ctr) build -t cert-manager.local/client-workload -f client/workload.Containerfile --build-arg AWSTARGETARCH=x86_64 ./client
+
+.PHONY: client-linux-arm64
+client-linux-arm64: client/workload.Containerfile
+	$(ctr) build -t cert-manager.local/client-workload -f client/workload.Containerfile --build-arg AWSTARGETARCH=aarch64 ./client
 
 .PHONY: kind-load
-kind-load: container-linux-$(host) client-linux
+kind-load: container-linux-$(host) client-linux-$(host)
 	kind load docker-image --name $(kind_cluster) cert-manager.local/token-exchange:latest
 	kind load docker-image --name $(kind_cluster) cert-manager.local/client-workload:latest
 
