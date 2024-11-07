@@ -33,5 +33,3 @@ RUN chmod +x /usr/local/bin/workload.init.sh && \
     chmod +x /fetch-azure.sh
 
 WORKDIR /
-
-# vim: syntax=Dockerfile

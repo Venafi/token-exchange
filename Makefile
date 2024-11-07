@@ -44,12 +44,12 @@ container-linux-arm64: Containerfile $(bindir)/release/token-exchange-linux-arm6
 	$(ctr) build -t cert-manager.local/token-exchange -f Containerfile --build-arg TARGETARCH=arm64 ./$(bindir)/release
 
 .PHONY: client-linux-amd64
-client-linux-amd64: client/workload.Containerfile
-	$(ctr) build -t cert-manager.local/client-workload -f client/workload.Containerfile --build-arg AWSTARGETARCH=x86_64 ./client
+client-linux-amd64: client/Containerfile
+	$(ctr) build -t cert-manager.local/client-workload -f client/Containerfile --build-arg AWSTARGETARCH=x86_64 ./client
 
 .PHONY: client-linux-arm64
-client-linux-arm64: client/workload.Containerfile
-	$(ctr) build -t cert-manager.local/client-workload -f client/workload.Containerfile --build-arg AWSTARGETARCH=aarch64 ./client
+client-linux-arm64: client/Containerfile
+	$(ctr) build -t cert-manager.local/client-workload -f client/Containerfile --build-arg AWSTARGETARCH=aarch64 ./client
 
 $(bindir)/spiffe-workload: $(wildcard cmd/spiffe-workload/*.go) $(deps) | $(bindir)
 	CGO_ENABLED=0 go build -o $@ cmd/spiffe-workload/main.go
