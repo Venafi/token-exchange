@@ -12,18 +12,18 @@ spec:
     env:
     - {name: "AWS_ENABLE", value: "true"}
     - {name: "AWS_AUDIENCE", value: "aws"}
-    - {name: "AWS_ROLE", value: "<ROLE>"}
+    - {name: "AWS_ROLE", value: "arn:aws:iam::334114465092:role/KubeCon_NA_24_DEMO"}
 
     - {name: "AZURE_ENABLE", value: "true"}
     - {name: "AZURE_AUDIENCE", value: "azure"}
-    - {name: "AZURE_APPLICATION_ID", value: "<APPLICATION_ID>"}
-    - {name: "AZURE_TENANT_ID", value: "<TENANT_ID>"}
+    - {name: "AZURE_APPLICATION_ID", value: "20166ed5-aa01-447e-8f7c-6c169f7a9487"}
+    - {name: "AZURE_TENANT_ID", value: "0192a697-ddb9-4a76-8a03-89b135007265"}
 
     - {name: "GCLOUD_ENABLE", value: "true"}
     - {name: "GCLOUD_AUDIENCE", value: "gcloud"}
-    - {name: "GCLOUD_SA", value: "<SA_NAME>@<PROJECT_NAME>.iam.gserviceaccount.com"}
-    - {name: "GCLOUD_PROVIDER", value: "//iam.googleapis.com/projects/<PROJECT_ID>/locations/global/workloadIdentityPools/<POOL_NAME>/providers/<PROVIDER_NAME>"}
-    - {name: "GCLOUD_PROJECT", value: "<PROJECT_NAME>"}
+    - {name: "GCLOUD_SA", value: "kubecon-na-24-demo@jetstack-tim-ramlot.iam.gserviceaccount.com"}
+    - {name: "GCLOUD_PROVIDER", value: "//iam.googleapis.com/projects/17852703695/locations/global/workloadIdentityPools/kubecon-na-24-demo/providers/demo"}
+    - {name: "GCLOUD_PROJECT", value: "jetstack-tim-ramlot"}
 
     command: ['sh', '-c', 'workload.init.sh && sleep 3600']
 
