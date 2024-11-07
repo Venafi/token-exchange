@@ -143,6 +143,8 @@ func (wks *wellKnownServer) handleOpenIDConfiguration(r *http.Request) srvtool.R
 	})
 }
 
+type GetJWKsResponse jose.JSONWebKeySet
+
 func (wks *wellKnownServer) handleJWKs(r *http.Request) srvtool.Response {
 	fprint, httpErr := wks.extractRootID(r)
 	if httpErr != nil {
@@ -157,7 +159,7 @@ func (wks *wellKnownServer) handleJWKs(r *http.Request) srvtool.Response {
 
 	publicKey := key.Public()
 
-	response := jose.JSONWebKeySet{
+	response := GetJWKsResponse{
 		Keys: []jose.JSONWebKey{
 			{
 				Algorithm: string(jose.RS256), // TODO: should vary on key type?

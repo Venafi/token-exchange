@@ -59,7 +59,7 @@ func Test_handleTokenRequest(t *testing.T) {
 		name     string
 		postForm map[string][]string
 		certs    []*x509.Certificate
-		expValue func(*testing.T, *tokenResponse)
+		expValue func(*testing.T, *GetTokenResponse)
 		expError *srvtool.ErrMsg
 	}{
 		{
@@ -79,7 +79,7 @@ func Test_handleTokenRequest(t *testing.T) {
 					NotAfter:              time.Now().Add(time.Hour),
 				}),
 			},
-			expValue: func(t *testing.T, tr *tokenResponse) {
+			expValue: func(t *testing.T, tr *GetTokenResponse) {
 				require.NotEmpty(t, tr.AccessToken)
 				require.Equal(t, "urn:ietf:params:oauth:token-type:jwt", tr.IssuedTokenType)
 				require.Equal(t, 3600, tr.ExpiresIn)

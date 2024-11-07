@@ -1,0 +1,12 @@
+FROM ghcr.io/spiffe/spire-agent:1.11.0 AS spire-agent-ctr
+
+FROM docker.io/busybox:1.37-glibc AS busybox
+
+COPY --from=spire-agent-ctr /opt/spire/bin/spire-agent /opt/spire/bin/spire-agent
+COPY ./spire-agent-client.sh /spire-agent-client.sh
+
+RUN chmod +x /spire-agent-client.sh
+
+WORKDIR /
+
+ENTRYPOINT ["/spire-agent-client.sh"]
