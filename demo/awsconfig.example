@@ -1,0 +1,4 @@
+[default]
+role_arn=ROLE_ARN_HERE
+web_identity_token_file=/root/.aws/aws-jwt-token
+

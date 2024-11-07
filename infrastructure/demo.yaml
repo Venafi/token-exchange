@@ -1,0 +1,57 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: client
+  namespace: default
+spec:
+  initContainers:
+  - name: spiffe-workload
+    image: cert-manager.local/spiffe-workload:latest
+    imagePullPolicy: Never
+    restartPolicy: Always
+
+    volumeMounts:
+    - mountPath: "/var/run/secrets/spiffe.io"
+      readOnly: true
+      name: spiffe-x509-svid
+
+    - mountPath: "/tls-trust"
+      readOnly: true
+      name: spiffe-trust-bundle
+
+    - mountPath: "/var/run/secrets/workload-spiffe-uds"
+      name: spiffe-socket
+
+  containers:
+  - name: client-workload
+    image: cert-manager.local/demo:latest
+    imagePullPolicy: Never
+
+    command: ['sh', '-c', 'sleep 3600']
+
+    volumeMounts:
+    - mountPath: "/var/run/secrets/workload-spiffe-uds"
+      name: spiffe-socket
+
+  volumes:
+    - name: spiffe-x509-svid
+      csi:
+        driver: csi.cert-manager.io
+        readOnly: true
+        volumeAttributes:
+          csi.cert-manager.io/issuer-name: workload-issuer
+          csi.cert-manager.io/issuer-kind: ClusterIssuer
+          csi.cert-manager.io/issuer-group: cert-manager.io
+
+          csi.cert-manager.io/uri-sans: spiffe://tim-ramlot-gcp.jetstacker.net/workload
+
+    - name: spiffe-socket
+      emptyDir:
+        sizeLimit: 25Mi
+
+    - name: spiffe-trust-bundle
+      configMap:
+        name: spiffe-workload-trust-bundle
+        items:
+        - key: bundle.pem
+          path: bundle.pem
