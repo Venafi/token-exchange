@@ -1,6 +1,10 @@
+FROM ghcr.io/spiffe/spire-agent:1.11.0 AS spire-agent-ctr
+
 FROM ubuntu:latest
 
 ARG AWSTARGETARCH
+
+COPY --from=spire-agent-ctr /opt/spire/bin/spire-agent /usr/bin/spire-agent
 
 RUN \
     apt-get update -y && \
@@ -21,6 +25,7 @@ RUN \
     rm -rf /var/lib/apt/lists/*
 
 COPY workload.init.sh /usr/local/bin/workload.init.sh
+
 COPY fetch-aws.sh /fetch-aws.sh
 COPY fetch-gcp.sh /fetch-gcp.sh
 COPY fetch-azure.sh /fetch-azure.sh

@@ -32,14 +32,14 @@ import (
 )
 
 const (
-	defaultSocketPath = "/spiffe/spiffe.sock"
+	defaultSocketPath = "/var/run/secrets/workload-spiffe-uds/socket"
 
-	defaultCertPath     = "/var/run/secrets/spiffe.io"
-	defaultCABundlePath = "/var/run/secrets/spiffe.io"
+	defaultCertPath = "/var/run/secrets/spiffe.io"
 
 	defaultChainFilename      = "tls.crt"
 	defaultPrivateKeyFilename = "tls.key"
-	defaultCABundleFilename   = "ca.crt"
+
+	defaultCABundlePath = "/tls-trust/bundle.pem"
 
 	defaultTokenExchangeTokenURL     = "https://token-exchange-token.token-exchange.svc.cluster.local"
 	defaultTokenExchangeWellKnownURL = "https://token-exchange-wellknown.token-exchange.svc.cluster.local"
@@ -408,7 +408,7 @@ func (ws *workloadServer) FetchJWTSVID(ctx context.Context, req *workload.JWTSVI
 	formData := url.Values{
 		"grant_type":         {"urn:ietf:params:oauth:grant-type:token-exchange"},
 		"subject_token_type": {"urn:ietf:params:oauth:token-type:tls-client-auth"},
-		"audience":           {"test"},
+		"audience":           {strings.Join(req.Audience, ",")},
 	}
 
 	tokenRequest, err := http.NewRequest("POST", ws.postTokenURL(), strings.NewReader(formData.Encode()))
@@ -559,7 +559,7 @@ func do(ctx context.Context, logger *slog.Logger) error {
 	flag.StringVar(&chainLocation, "tls-chain-location", filepath.Join(defaultCertPath, defaultChainFilename), "Filesystem location of PEM-encoded X.509 chain to serve in requested X.509 SVID")
 	flag.StringVar(&privateKeyLocation, "tls-private-key-location", filepath.Join(defaultCertPath, defaultPrivateKeyFilename), "Filesystem location of PEM-encoded private key to serve in requested X.509 SVID")
 
-	flag.StringVar(&caBundleLocation, "ca-bundle-location", filepath.Join(defaultCABundlePath, defaultCABundleFilename), "Filesystem location of PEM-encoded X.509 certificate bundle to serve in requested X.509 bundles")
+	flag.StringVar(&caBundleLocation, "ca-bundle-location", defaultCABundlePath, "Filesystem location of PEM-encoded X.509 certificate bundle to serve in requested X.509 bundles")
 
 	flag.StringVar(&tokenExchangeTokenURL, "token-exchange-token-url", defaultTokenExchangeTokenURL, "URL of token-exchange token server to use for JWT SVIDs")
 	flag.StringVar(&tokenExchangeWellKnownURL, "token-exchange-wellknown-url", defaultTokenExchangeWellKnownURL, "URL of token-exchange 'wellknown' server to use for querying JWKs")
