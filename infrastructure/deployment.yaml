@@ -126,7 +126,7 @@ spec:
           containerPort: 9119
         args:
           - "-discover-endpoint"
-          - "token-exchange-wellknown.token-exchange.svc.cluster.local"
+          - "discover.tim-ramlot-gcp.jetstacker.net"
           - "-secret-key-location"
           - "/secret-key/key"
           - "-tls-chain-location"

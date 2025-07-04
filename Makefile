@@ -72,12 +72,21 @@ spiffe-workload-container-linux-arm64: Containerfile.spiffe-workload $(bindir)/r
 spire-agent-client-container-linux: $(wildcard spire-agent-client/*)
 	$(ctr) build -t cert-manager.local/spire-agent-client -f spire-agent-client/Containerfile ./spire-agent-client
 
+.PHONY: demo-container-linux-amd64
+demo-container-linux-amd64: demo/Containerfile demo/workload.init.sh
+	$(ctr) build -t cert-manager.local/demo -f demo/Containerfile --build-arg AWSTARGETARCH=x86_64 ./demo
+
+.PHONY: demo-container-linux-arm64
+demo-container-linux-arm64: demo/Containerfile demo/workload.init.sh
+	$(ctr) build -t cert-manager.local/demo -f demo/Containerfile --build-arg AWSTARGETARCH=aarch64 ./demo
+
 .PHONY: kind-load
-kind-load: container-linux-$(host) spiffe-workload-container-linux-$(host) spire-agent-client-container-linux client-linux-$(host)
+kind-load: container-linux-$(host) spiffe-workload-container-linux-$(host) spire-agent-client-container-linux client-linux-$(host) demo-container-linux-$(host)
 	kind load docker-image --name $(kind_cluster) cert-manager.local/token-exchange:latest
 	kind load docker-image --name $(kind_cluster) cert-manager.local/client-workload:latest
 	kind load docker-image --name $(kind_cluster) cert-manager.local/spiffe-workload:latest
 	kind load docker-image --name $(kind_cluster) cert-manager.local/spire-agent-client:latest
+	kind load docker-image --name $(kind_cluster) cert-manager.local/demo:latest
 
 CERT_MANAGER_VERSION=v1.16.1
 TRUST_MANAGER_VERSION=v0.12.0

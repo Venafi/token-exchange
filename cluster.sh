@@ -32,6 +32,8 @@ kubectl apply -f infrastructure/deployment.yaml
 
 kubectl apply -f $secretkey_yaml
 
-kubectl apply -f infrastructure/client_workload.yaml
+# kubectl apply -f infrastructure/client_workload.yaml
 
-kubectl apply -f infrastructure/spiffe_workload_example.yaml
+# kubectl apply -f infrastructure/spiffe_workload_example.yaml
+
+# kubectl apply -f infrastructure/demo.yaml

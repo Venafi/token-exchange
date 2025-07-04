@@ -4,9 +4,7 @@ ARG AWSTARGETARCH
 
 RUN \
     apt-get update -y && \
-    apt-get install -y curl jq unzip gpg vim && \
-    \
-    apt-get install -y mandoc && \
+    apt-get install -y curl jq unzip gpg vim mandoc && \
     curl "https://awscli.amazonaws.com/awscli-exe-linux-$AWSTARGETARCH.zip" -o "awscliv2.zip" && \
     unzip awscliv2.zip && \
     ./aws/install && \
