@@ -47,6 +47,8 @@ func run(ctx context.Context, logger *slog.Logger) error {
 
 	var trustBundleLocation string
 
+	var trustDomain string
+
 	flag.StringVar(&discoverEndpoint, "discover-endpoint", "discover.example.com", "DNS name at which the well-known / discovery server is available")
 
 	flag.StringVar(&secretKeyLocation, "secret-key-location", "", "Required: filesystem location of secret key (32 bytes, base64 encoded)")
@@ -55,6 +57,8 @@ func run(ctx context.Context, logger *slog.Logger) error {
 	flag.StringVar(&tlsPrivateKeyLocation, "tls-private-key-location", "", "Required: filesystem location of TLS private key")
 
 	flag.StringVar(&trustBundleLocation, "trust-bundle-location", "", "Required: filesystem location of TLS trust bundle for client certs")
+
+	flag.StringVar(&trustDomain, "trust-domain", "", "SPIFFE trust domain to validate against client certificate URIs")
 
 	flag.Parse()
 
@@ -129,6 +133,8 @@ func run(ctx context.Context, logger *slog.Logger) error {
 		RootMap: rootMap,
 
 		DiscoveryEndpoint: discoverEndpoint,
+
+		TrustDomain: trustDomain,
 	}
 
 	tokenServer, err := tokenserver.Create(ctx, tokenServerCfg)

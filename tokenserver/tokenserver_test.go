@@ -161,7 +161,8 @@ func Test_handleTokenRequest(t *testing.T) {
 							return pk
 						}(),
 					},
-					issuerURL: "https://example.com",
+					issuerURL:   "https://example.com",
+					trustDomain: "example.com",
 				}).handleTokenRequest,
 			)(rec, req)
 
@@ -180,15 +181,15 @@ func Test_handleTokenRequest(t *testing.T) {
 					require.Equal(t, *tt.expError, tokenResponse)
 				}
 			} else {
-				var tokenResponse tokenResponse
-				if err := json.Unmarshal(bytes, &tokenResponse); err != nil {
+				var tokenResp GetTokenResponse
+				if err := json.Unmarshal(bytes, &tokenResp); err != nil {
 					t.Fatal(err)
 				}
 
 				if tt.expValue == nil {
-					t.Fatalf("unexpected response: %v", tokenResponse)
+					t.Fatalf("unexpected response: %v", tokenResp)
 				} else {
-					tt.expValue(t, &tokenResponse)
+					tt.expValue(t, &tokenResp)
 				}
 			}
 		})
