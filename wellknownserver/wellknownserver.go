@@ -130,8 +130,6 @@ func (wks *wellKnownServer) handleOpenIDConfiguration(r *http.Request) srvtool.R
 		return httpErr
 	}
 
-	jwksHost := r.Host
-
 	return srvtool.Ok(oidcConfigurationResponse{
 		SupportedSigningAlgs:   []string{"RS256"}, // TODO: should depend on signing key type? haven't checked
 		SupportedResponseTypes: []string{"id_token"},
@@ -139,7 +137,7 @@ func (wks *wellKnownServer) handleOpenIDConfiguration(r *http.Request) srvtool.R
 		SupportedClaims:        []string{"iss", "sub", "aud", "exp", "iat"},
 
 		Issuer:  wks.issuerURL + "/" + fprint.Hex(),
-		JWKsURI: "https://" + jwksHost + "/" + fprint.Hex() + "/.well-known/jwks",
+		JWKsURI: wks.issuerURL + "/" + fprint.Hex() + "/.well-known/jwks",
 	})
 }
 
