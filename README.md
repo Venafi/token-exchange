@@ -1,3 +1,5 @@
+As of June 1, 2026 this project is deprecated and will no longer be maintained.
+
 # token-exchange
 
 This is the sister repo with demo code from our KubeCon NA 2024 talk in Salt Lake City, UT: [SPIFFE the Easy Way: Universal X509 and JWT Identities Using cert-manager](https://kccncna2024.sched.com/event/1i7rz).
