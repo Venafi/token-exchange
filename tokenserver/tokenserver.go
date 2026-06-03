@@ -42,6 +42,8 @@ type Config struct {
 	RootMap fingerprint.RootMap
 
 	DiscoveryEndpoint string
+
+	TrustDomain string
 }
 
 func Create(ctx context.Context, config *Config) (*http.Server, error) {
@@ -65,7 +67,7 @@ func Create(ctx context.Context, config *Config) (*http.Server, error) {
 
 		TLSConfig: tlsCfg,
 
-		Handler: newServer(config.RootMap, config.DiscoveryEndpoint),
+		Handler: newServer(config.RootMap, config.DiscoveryEndpoint, config.TrustDomain),
 	}
 
 	tokenSrv.SetKeepAlivesEnabled(false)
@@ -73,13 +75,15 @@ func Create(ctx context.Context, config *Config) (*http.Server, error) {
 	return tokenSrv, nil
 }
 
-func newServer(roots fingerprint.RootMap, discoverEndpoint string) http.Handler {
+func newServer(roots fingerprint.RootMap, discoverEndpoint string, trustDomain string) http.Handler {
 	mux := http.NewServeMux()
 
 	srv := &tokenServer{
 		roots: roots,
 
 		issuerURL: "https://" + discoverEndpoint,
+
+		trustDomain: trustDomain,
 	}
 
 	mux.HandleFunc("POST /token", srvtool.JSONHandler(srv.handleTokenRequest))
@@ -94,6 +98,8 @@ type tokenServer struct {
 	roots fingerprint.RootMap
 
 	issuerURL string
+
+	trustDomain string
 }
 
 type statusMsg struct {
@@ -177,6 +183,14 @@ func (ts *tokenServer) handleTokenRequest(r *http.Request) srvtool.Response {
 	}
 
 	subject := svidURIs[0]
+
+	if ts.trustDomain != "" {
+		spiffeURI := clientCertChain[0].URIs[0]
+		if spiffeURI.Host != ts.trustDomain {
+			logger.Error("SPIFFE URI trust domain mismatch", "expected", ts.trustDomain, "got", spiffeURI.Host)
+			return srvtool.Errorf(http.StatusForbidden, "SPIFFE URI trust domain %q does not match configured trust domain %q", spiffeURI.Host, ts.trustDomain)
+		}
+	}
 
 	claims := &jwtgen.RegisteredClaims{
 		Issuer:    ts.issuerURL + "/" + fprint.Hex(),
