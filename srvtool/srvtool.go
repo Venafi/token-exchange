@@ -96,6 +96,8 @@ func writeBody(ctx context.Context, w http.ResponseWriter, statusCode int, body 
 	}
 
 	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Vary", "Host")
 	w.WriteHeader(statusCode)
 
 	if _, err := w.Write(out); err != nil {
